@@ -80,12 +80,44 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 win32 {
     VCPKG_ROOT = C:/Users/ikasy/vcpkg
+}
 
-    INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
-    LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib
+win32-g++ {
+    VCPKG_TRIPLET = x64-mingw-dynamic
+    VCPKG_INSTALLED = $$VCPKG_ROOT/installed/$$VCPKG_TRIPLET
 
-    exists($$VCPKG_ROOT/installed/x64-windows/include/rtc/rtc.hpp) {
+    INCLUDEPATH += $$VCPKG_INSTALLED/include
+
+    exists($$VCPKG_INSTALLED/include/rtc/rtc.hpp) {
         DEFINES += HAVE_LIBDATACHANNEL
+        LIBS += $$VCPKG_INSTALLED/lib/libdatachannel.dll.a
+
+        VCPKG_BIN_DIR = $$VCPKG_INSTALLED/bin
+        exists($$VCPKG_BIN_DIR/libdatachannel.dll) {
+            TARGET_DLL_DIR = $$OUT_PWD
+            !isEmpty(DESTDIR) {
+                TARGET_DLL_DIR = $$DESTDIR
+            }
+
+            VCPKG_BIN_GLOB = $$replace(VCPKG_BIN_DIR,/,\\)\\*.dll
+            TARGET_DLL_WIN = $$replace(TARGET_DLL_DIR,/,\\)
+
+            # Копируем все DLL из vcpkg/bin (включая зависимости libdatachannel,
+            # например libjuice.dll) рядом с итоговым exe.
+            QMAKE_POST_LINK += cmd /c copy /Y "$$VCPKG_BIN_GLOB" "$$TARGET_DLL_WIN" $$escape_expand(\n\t)
+        }
+    }
+}
+
+win32-msvc {
+    VCPKG_TRIPLET = x64-windows
+    VCPKG_INSTALLED = $$VCPKG_ROOT/installed/$$VCPKG_TRIPLET
+
+    INCLUDEPATH += $$VCPKG_INSTALLED/include
+
+    exists($$VCPKG_INSTALLED/include/rtc/rtc.hpp) {
+        DEFINES += HAVE_LIBDATACHANNEL
+        LIBS += -L$$VCPKG_INSTALLED/lib
         LIBS += -ldatachannel
     }
 }

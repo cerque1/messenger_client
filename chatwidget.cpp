@@ -55,7 +55,7 @@ MessageWidget::MessageWidget(const entities::Message& message, bool isNew, QWidg
         message.create_time_,
         Qt::ISODate
     );
-    time.setTimeSpec(Qt::UTC);
+    time.setTimeZone(QTimeZone::UTC);
     time = time.toLocalTime();
     QString time_text = time.isValid() ? time.toString("dd.MM.yy HH:mm") : message.create_time_;
     QLabel* send_time_label = new QLabel(time_text);
@@ -934,7 +934,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     main_layout->setContentsMargins(0, 0, 0, 0);
     main_layout->setSpacing(0);
     ChatHeader* header = new ChatHeader(-1, "", "", this);
-    MessagesWidget* messages = new MessagesWidget(chat_id_, this);
+    MessagesWidget* messages = new MessagesWidget(chat_id_, true, this);
     input_panel_ = new InputPanelWidget(this);
     connect(input_panel_, SIGNAL(ClickSendMessage()), this, SLOT(ClickToSendMessage()));
     connect(input_panel_, SIGNAL(ChoseFile(QString)), this, SLOT(ChoseFile(QString)));
