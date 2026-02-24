@@ -43,4 +43,26 @@ void MessageHandler::Handle(Request message){
         emit DeleteChatMember(message.getValueFromBody("chat_id").toInt(),
                               message.getValueFromBody("user_id").toInt());
     }
+    else if(path == "incoming_call") {
+        emit IncomingCall(message.getValueFromBody("chat_id").toInt(),
+                          message.getValueFromBody("caller_id").toInt(),
+                          message.getValueFromBody("caller_name").toString(),
+                          message.getValueFromBody("sdp").toString());
+    }
+    else if(path == "call_answer") {
+        emit CallAccepted(message.getValueFromBody("chat_id").toInt(),
+                          message.getValueFromBody("sdp").toString());
+    }
+    else if(path == "call_declined") {
+        emit CallDeclined(message.getValueFromBody("chat_id").toInt());
+    }
+    else if(path == "call_ended") {
+        emit CallEnded(message.getValueFromBody("chat_id").toInt());
+    }
+    else if(path == "call_candidate") {
+        emit CallCandidate(message.getValueFromBody("chat_id").toInt(),
+                           message.getValueFromBody("candidate").toString(),
+                           message.getValueFromBody("mid").toString(),
+                           message.getValueFromBody("mline_index").toInt());
+    }
 }

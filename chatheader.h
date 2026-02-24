@@ -21,6 +21,10 @@ public:
 
 signals:
     void clicked(int chat_id, QString chat_name);
+    void startCallClicked(int chat_id, QString chat_name);
+
+private slots:
+    void startCallSlot();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override {

@@ -16,6 +16,7 @@ SOURCES += \
     chatheader.cpp \
     chatsbox.cpp \
     chatwidget.cpp \
+    callsession.cpp \
     clickablefilelabel.cpp \
     client.cpp \
     createchat.cpp \
@@ -42,6 +43,7 @@ HEADERS += \
     chatheader.h \
     chatsbox.h \
     chatwidget.h \
+    callsession.h \
     clickablefilelabel.h \
     client.h \
     createchat.h \
@@ -74,3 +76,23 @@ FORMS += \
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+
+win32 {
+    VCPKG_ROOT = C:/Users/ikasy/vcpkg
+
+    INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
+    LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib
+
+    exists($$VCPKG_ROOT/installed/x64-windows/include/rtc/rtc.hpp) {
+        DEFINES += HAVE_LIBDATACHANNEL
+        LIBS += -ldatachannel
+    }
+}
+
+unix {
+    exists(/usr/include/rtc/rtc.hpp) {
+        DEFINES += HAVE_LIBDATACHANNEL
+        LIBS += -ldatachannel
+    }
+}
