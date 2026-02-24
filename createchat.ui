@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CreateChat</class>
+ <widget class="QWidget" name="CreateChat">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>489</width>
+    <height>328</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* ================= ROOT ================= */
+
+QWidget {
+    background-color: #0b0c0e;
+    color: #e6e6e6;
+    font-family: &quot;Segoe UI&quot;, &quot;Inter&quot;, sans-serif;
+    font-size: 14px;
+}
+
+
+/* ================= TABS (Telegram style) ================= */
+
+QTabWidget::pane {
+    border: 1px solid #1f2227;
+    border-radius: 12px;
+    background-color: #111317;
+    margin-top: 8px;
+}
+
+QTabBar::tab {
+    background-color: transparent;
+    color: #9aa0a6;
+    padding: 8px 18px;
+    margin-right: 6px;
+    border-radius: 8px;
+}
+
+QTabBar::tab:hover {
+    background-color: #1a1d22;
+    color: #ffffff;
+}
+
+QTabBar::tab:selected {
+    background-color: #2563eb;
+    color: white;
+}
+
+
+/* ================= LABELS ================= */
+
+QLabel {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+
+/* ================= INPUT ================= */
+
+QLineEdit {
+    background-color: #15171a;
+    border: 1px solid #23262b;
+    border-radius: 10px;
+    padding-left: 12px;
+    height: 32px;
+    color: #ffffff;
+    selection-background-color: #3b82f6;
+}
+
+QLineEdit:hover {
+    background-color: #181b1f;
+    border: 1px solid #2f3339;
+}
+
+QLineEdit:focus {
+    background-color: #1b1e23;
+    border: 1px solid #3b82f6;
+}
+
+
+/* ================= BUTTON ================= */
+
+QPushButton {
+    background-color: #2563eb;
+    border: 1px solid #2563eb;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    padding: 6px 16px;
+}
+
+QPushButton:hover {
+    background-color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+QPushButton:pressed {
+    background-color: #1d4ed8;
+    border: 1px solid #1d4ed8;
+}
+
+
+/* ================= DISABLED ================= */
+
+QPushButton:disabled {
+    background-color: #1a1c20;
+    border: 1px solid #1a1c20;
+    color: #6b7280;
+}
+</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tab">
+      <attribute name="title">
+       <string>Создание диалога</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_3">
+       <item row="0" column="0">
+        <layout class="QGridLayout" name="gridLayout_2">
+         <item row="1" column="0">
+          <spacer name="horizontalSpacer_2">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="1" column="2">
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLabel" name="nick_label">
+           <property name="minimumSize">
+            <size>
+             <width>200</width>
+             <height>20</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Никнейм пользователя:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="nick_edit"/>
+         </item>
+         <item row="3" column="1">
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="0" column="1">
+          <spacer name="verticalSpacer_2">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="5" column="1">
+          <spacer name="verticalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="4" column="1" alignment="Qt::AlignmentFlag::AlignHCenter">
+          <widget class="QPushButton" name="nick_button">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>100</width>
+             <height>25</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>150</width>
+             <height>35</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Создать</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_2">
+      <attribute name="title">
+       <string>Создание группового чата</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="0" column="0">
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="3" column="1">
+          <spacer name="verticalSpacer_5">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="1" column="2">
+          <spacer name="horizontalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="5" column="1">
+          <spacer name="verticalSpacer_6">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLabel" name="gchat_label">
+           <property name="minimumSize">
+            <size>
+             <width>200</width>
+             <height>20</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>Название чата:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <spacer name="verticalSpacer_4">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="1" column="0">
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="gchat_edit"/>
+         </item>
+         <item row="4" column="1" alignment="Qt::AlignmentFlag::AlignHCenter">
+          <widget class="QPushButton" name="gchat_button">
+           <property name="text">
+            <string>Создать</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

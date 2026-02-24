@@ -1,0 +1,76 @@
+QT       += core gui
+
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+QT += websockets
+
+CONFIG += c++17
+
+# You can make your code fail to compile if it uses deprecated APIs.
+# In order to do so, uncomment the following line.
+#DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+
+SOURCES += \
+    chat.cpp \
+    chatdetails.cpp \
+    chatheader.cpp \
+    chatsbox.cpp \
+    chatwidget.cpp \
+    clickablefilelabel.cpp \
+    client.cpp \
+    createchat.cpp \
+    downloadmanagerworker.cpp \
+    entities.cpp \
+    filedownloadmanager.cpp \
+    fileitemwidget.cpp \
+    filesdisplaywidget.cpp \
+    fileuploadmanager.cpp \
+    generaldata.cpp \
+    log_reg_pages.cpp \
+    main.cpp \
+    mainpage.cpp \
+    messagehandler.cpp \
+    req_resp_utils.cpp \
+    request.cpp \
+    response.cpp \
+    uploadmanagerworker.cpp \
+    utils.cpp
+
+HEADERS += \
+    chat.h \
+    chatdetails.h \
+    chatheader.h \
+    chatsbox.h \
+    chatwidget.h \
+    clickablefilelabel.h \
+    client.h \
+    createchat.h \
+    downloadmanagerworker.h \
+    entities.h \
+    filedownloadmanager.h \
+    fileitemwidget.h \
+    filesdisplaywidget.h \
+    fileuploadmanager.h \
+    generaldata.h \
+    log_reg_pages.h \
+    mainpage.h \
+    messagehandler.h \
+    req_resp_utils.h \
+    req_utils.h \
+    request.h \
+    response.h \
+    uploadmanagerworker.h \
+    utils.h
+
+FORMS += \
+    chat.ui \
+    chatdetails.ui \
+    chatheader.ui \
+    createchat.ui \
+    log_reg_pages.ui \
+    mainpage.ui
+
+# Default rules for deployment.
+qnx: target.path = /tmp/$${TARGET}/bin
+else: unix:!android: target.path = /opt/$${TARGET}/bin
+!isEmpty(target.path): INSTALLS += target

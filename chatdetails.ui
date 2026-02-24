@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ChatDetails</class>
+ <widget class="QWidget" name="ChatDetails">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>430</width>
+    <height>384</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget#ChatDetails {
+    background-color: #0b0c0e;
+    color: #e6e6e6;
+}
+
+QPushButton#back {
+    background-color: #2563eb;
+    border: 1px solid #2563eb;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    padding: 7px 16px;
+}
+
+QPushButton#back:hover {
+    background-color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+QPushButton#back:pressed {
+    background-color: #1d4ed8;
+    border: 1px solid #1d4ed8;
+}
+
+QLabel#chat_name {
+    color: #ffffff;
+    font-weight: 500;
+    font-size: 16px;
+}
+
+QTabWidget::pane {
+    background-color: #0b0c0e;
+    border: 1px solid #23262b;
+    border-radius: 10px;
+}
+
+QTabBar::tab {
+    background-color: #15171a;
+    color: #a1a1aa;
+    border: 1px solid #23262b;
+    border-bottom: none;
+    padding: 8px 16px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected {
+    background-color: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: #181b1f;
+    color: #ffffff;
+}
+
+QListWidget {
+    background-color: #15171a;
+    border: 1px solid #23262b;
+    border-radius: 10px;
+    color: #ffffff;
+}
+
+QListWidget::item {
+    background-color: #15171a;
+    border-radius: 8px;
+    padding: 4px;
+    margin: 2px;
+}
+
+QListWidget::item:hover {
+    background-color: #181b1f;
+}
+
+QListWidget::item:selected {
+    background-color: #2563eb;
+}</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item alignment="Qt::AlignmentFlag::AlignLeft">
+    <widget class="QPushButton" name="back">
+     <property name="text">
+      <string>Назад</string>
+     </property>
+    </widget>
+   </item>
+   <item alignment="Qt::AlignmentFlag::AlignHCenter">
+    <widget class="QLabel" name="chat_name">
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="media">
+      <attribute name="title">
+       <string>Медиа</string>
+      </attribute>
+     </widget>
+     <widget class="QWidget" name="files">
+      <attribute name="title">
+       <string>Файлы</string>
+      </attribute>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
