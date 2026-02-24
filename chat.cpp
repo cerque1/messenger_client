@@ -20,7 +20,7 @@ Chat::Chat(const entities::Chat& chat, QWidget *parent)
         chat.last_update_time_,
         Qt::ISODate
         );
-    dt.setTimeSpec(Qt::UTC);
+    dt.setTimeZone(QTimeZone::UTC);
     dt = dt.toLocalTime();
     QString result;
 
