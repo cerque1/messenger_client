@@ -12,6 +12,7 @@
 
 class QTextEdit;
 class QPushButton;
+class QDialog;
 
 #include "entities.h"
 #include "chatheader.h"
@@ -19,6 +20,7 @@ class QPushButton;
 #include "fileitemwidget.h"
 #include "uploadmanagerworker.h"
 #include "downloadmanagerworker.h"
+#include "callsession.h"
 
 class ChatWidget;
 
@@ -279,6 +281,17 @@ public slots:
     void ChoseFile(QString);
     void onFileDownloadRequested(int chatId, int messageId, int fileIndex, QString filename);
 
+private slots:
+    void StartCall(int chat_id, QString chat_name);
+    void OnIncomingCall(int chat_id, int caller_id, QString caller_name, QString offer_sdp);
+    void OnCallAccepted(int chat_id, QString answer_sdp);
+    void OnCallDeclined(int chat_id);
+    void OnCallEnded(int chat_id);
+    void OnRemoteCandidate(int chat_id, QString candidate, QString mid, int mline_index);
+    void SendOffer(QString sdp);
+    void SendAnswer(QString sdp);
+    void SendCandidate(QString candidate, QString mid, int mline_index);
+
 private:
     WidgetsToChat CreateChatWidgets(entities::ChatInfo info, bool is_dialog);
     void HideChat();
@@ -290,6 +303,13 @@ private:
     std::unordered_map<int, WidgetsToChat> messages_in_chats_;
     std::shared_ptr<UploadManagerWorker> upload_manager_worker_;
     std::unique_ptr<DownloadManagerWorker> download_manager_worker_;
+
+    std::unique_ptr<CallSession> call_session_;
+    QDialog* outgoing_call_dialog_ = nullptr;
+    QDialog* incoming_call_dialog_ = nullptr;
+    int active_call_chat_id_ = -1;
+    int pending_incoming_chat_id_ = -1;
+    QString pending_incoming_offer_;
 };
 
 #endif // CHATWIDGET_H

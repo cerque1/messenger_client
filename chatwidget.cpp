@@ -21,6 +21,8 @@
 #include <QResizeEvent>
 #include <QTimeZone>
 #include <QFrame>
+#include <QDialog>
+#include <QDialogButtonBox>
 
 MessageWidget::MessageWidget(const entities::Message& message, bool isNew, QWidget* parent)
     : QWidget(parent), chat_id_(message.chat_id_), message_id_(message.id_),
@@ -925,6 +927,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     , chat_id_(chat_id)
     , upload_manager_worker_(upload_manager_worker)
     , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://localhost:1234")))
+    , call_session_(std::make_unique<CallSession>())
 {
     this->setStyleSheet("QWidget { background-color: #0b0c0e; color: #e6e6e6; }");
     QVBoxLayout* main_layout = new QVBoxLayout(this);
@@ -935,6 +938,11 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     input_panel_ = new InputPanelWidget(this);
     connect(input_panel_, SIGNAL(ClickSendMessage()), this, SLOT(ClickToSendMessage()));
     connect(input_panel_, SIGNAL(ChoseFile(QString)), this, SLOT(ChoseFile(QString)));
+    connect(call_session_.get(), &CallSession::localOfferCreated, this, &ChatWidget::SendOffer);
+    connect(call_session_.get(), &CallSession::localAnswerCreated, this, &ChatWidget::SendAnswer);
+    connect(call_session_.get(), &CallSession::localCandidateCreated, this, &ChatWidget::SendCandidate);
+    connect(call_session_.get(), &CallSession::error, [](const QString& message){ utils::MakeMessageBox(message); });
+    connect(header, SIGNAL(startCallClicked(int,QString)), this, SLOT(StartCall(int,QString)));
     messages_in_chats_[chat_id] = {header, messages};
 
     main_layout->addWidget(header);
@@ -1206,6 +1214,167 @@ void ChatWidget::onFileDownloadRequested(int chatId, int messageId, int fileInde
 }
 
 
+
+void ChatWidget::StartCall(int chat_id, QString chat_name) {
+    if (chat_id < 0) {
+        return;
+    }
+
+    active_call_chat_id_ = chat_id;
+    if (!call_session_->startOutgoing()) {
+        return;
+    }
+
+    Request req;
+    req.setPath("start_call");
+    req.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+    req.setValueToBody("chat_id", chat_id);
+    req_resp_utils::SendReqAndWaitResp(req);
+
+    if (outgoing_call_dialog_) {
+        outgoing_call_dialog_->close();
+        delete outgoing_call_dialog_;
+    }
+
+    outgoing_call_dialog_ = new QDialog(this);
+    outgoing_call_dialog_->setWindowTitle(QString("Звонок: %1").arg(chat_name));
+    QVBoxLayout* layout = new QVBoxLayout(outgoing_call_dialog_);
+    layout->addWidget(new QLabel("Ожидание подключения собеседника..."));
+    QPushButton* cancel = new QPushButton("Отменить", outgoing_call_dialog_);
+    layout->addWidget(cancel);
+    connect(cancel, &QPushButton::clicked, this, [this, chat_id]() {
+        Request decline;
+        decline.setPath("end_call");
+        decline.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+        decline.setValueToBody("chat_id", chat_id);
+        req_resp_utils::SendReqAndWaitResp(decline);
+        call_session_->close();
+        active_call_chat_id_ = -1;
+        if (outgoing_call_dialog_) {
+            outgoing_call_dialog_->close();
+        }
+    });
+    outgoing_call_dialog_->show();
+}
+
+void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name, QString offer_sdp) {
+    Q_UNUSED(caller_id);
+    pending_incoming_chat_id_ = chat_id;
+    pending_incoming_offer_ = offer_sdp;
+
+    if (incoming_call_dialog_) {
+        incoming_call_dialog_->close();
+        delete incoming_call_dialog_;
+    }
+
+    incoming_call_dialog_ = new QDialog(this);
+    incoming_call_dialog_->setWindowTitle("Входящий звонок");
+    QVBoxLayout* layout = new QVBoxLayout(incoming_call_dialog_);
+    layout->addWidget(new QLabel(QString("Входящий звонок от %1").arg(caller_name)));
+
+    QDialogButtonBox* box = new QDialogButtonBox(QDialogButtonBox::Yes | QDialogButtonBox::No, incoming_call_dialog_);
+    box->button(QDialogButtonBox::Yes)->setText("Принять");
+    box->button(QDialogButtonBox::No)->setText("Отклонить");
+    layout->addWidget(box);
+
+    connect(box, &QDialogButtonBox::accepted, this, [this]() {
+        active_call_chat_id_ = pending_incoming_chat_id_;
+        call_session_->startIncoming(pending_incoming_offer_);
+        Request accept;
+        accept.setPath("accept_call");
+        accept.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+        accept.setValueToBody("chat_id", pending_incoming_chat_id_);
+        req_resp_utils::SendReqAndWaitResp(accept);
+        incoming_call_dialog_->close();
+    });
+
+    connect(box, &QDialogButtonBox::rejected, this, [this]() {
+        Request decline;
+        decline.setPath("decline_call");
+        decline.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+        decline.setValueToBody("chat_id", pending_incoming_chat_id_);
+        req_resp_utils::SendReqAndWaitResp(decline);
+        incoming_call_dialog_->close();
+    });
+
+    incoming_call_dialog_->show();
+}
+
+void ChatWidget::OnCallAccepted(int chat_id, QString answer_sdp) {
+    if (chat_id != active_call_chat_id_) {
+        return;
+    }
+    call_session_->applyRemoteAnswer(answer_sdp);
+    if (outgoing_call_dialog_) {
+        outgoing_call_dialog_->close();
+    }
+}
+
+void ChatWidget::OnCallDeclined(int chat_id) {
+    if (chat_id != active_call_chat_id_) {
+        return;
+    }
+    call_session_->close();
+    active_call_chat_id_ = -1;
+    if (outgoing_call_dialog_) {
+        outgoing_call_dialog_->close();
+    }
+    utils::MakeMessageBox("Собеседник отклонил звонок");
+}
+
+void ChatWidget::OnCallEnded(int chat_id) {
+    if (chat_id != active_call_chat_id_) {
+        return;
+    }
+    call_session_->close();
+    active_call_chat_id_ = -1;
+}
+
+void ChatWidget::OnRemoteCandidate(int chat_id, QString candidate, QString mid, int mline_index) {
+    if (chat_id != active_call_chat_id_) {
+        return;
+    }
+    call_session_->addRemoteCandidate(candidate, mid, mline_index);
+}
+
+void ChatWidget::SendOffer(QString sdp) {
+    if (active_call_chat_id_ < 0) {
+        return;
+    }
+    Request req;
+    req.setPath("call_offer");
+    req.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+    req.setValueToBody("chat_id", active_call_chat_id_);
+    req.setValueToBody("sdp", sdp);
+    req_resp_utils::SendReqAndWaitResp(req);
+}
+
+void ChatWidget::SendAnswer(QString sdp) {
+    if (active_call_chat_id_ < 0) {
+        return;
+    }
+    Request req;
+    req.setPath("call_answer");
+    req.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+    req.setValueToBody("chat_id", active_call_chat_id_);
+    req.setValueToBody("sdp", sdp);
+    req_resp_utils::SendReqAndWaitResp(req);
+}
+
+void ChatWidget::SendCandidate(QString candidate, QString mid, int mline_index) {
+    if (active_call_chat_id_ < 0) {
+        return;
+    }
+    Request req;
+    req.setPath("call_candidate");
+    req.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+    req.setValueToBody("chat_id", active_call_chat_id_);
+    req.setValueToBody("candidate", candidate);
+    req.setValueToBody("mid", mid);
+    req.setValueToBody("mline_index", mline_index);
+    req_resp_utils::SendReqAndWaitResp(req);
+}
+
 void ChatWidget::HideChat(){
     WidgetsToChat* temp_chat = &messages_in_chats_[-1];
     QVBoxLayout* parent_layout = qobject_cast<QVBoxLayout*>(layout());
@@ -1232,6 +1401,7 @@ void ChatWidget::HideChat(){
 WidgetsToChat ChatWidget::CreateChatWidgets(entities::ChatInfo info, bool is_dialog){
     ChatHeader* profile = new ChatHeader(info.chat_id_, info.name_, info.time_, this);
     connect(profile, SIGNAL(clicked(int,QString)), this, SIGNAL(ChatDetailsClick(int,QString)));
+    connect(profile, SIGNAL(startCallClicked(int,QString)), this, SLOT(StartCall(int,QString)));
     MessagesWidget* messages = new MessagesWidget(info.chat_id_, is_dialog, this);
     connect(messages, SIGNAL(OnChangeMessage(MessageWidget*)), this, SLOT(OnChangeMessage(MessageWidget*)));
     return {profile, messages};

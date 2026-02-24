@@ -40,6 +40,12 @@ MainPage::MainPage(
     connect(handler, SIGNAL(AddChatMember(entities::UserInfoInChat)), this, SLOT(AddChatMember(entities::UserInfoInChat)));
 
     Prepare();
+
+    connect(handler, SIGNAL(IncomingCall(int,int,QString,QString)), chat_widgets_, SLOT(OnIncomingCall(int,int,QString,QString)));
+    connect(handler, SIGNAL(CallAccepted(int,QString)), chat_widgets_, SLOT(OnCallAccepted(int,QString)));
+    connect(handler, SIGNAL(CallDeclined(int)), chat_widgets_, SLOT(OnCallDeclined(int)));
+    connect(handler, SIGNAL(CallEnded(int)), chat_widgets_, SLOT(OnCallEnded(int)));
+    connect(handler, SIGNAL(CallCandidate(int,QString,QString,int)), chat_widgets_, SLOT(OnRemoteCandidate(int,QString,QString,int)));
 }
 
 void MainPage::setLogRegPage(QWidget* login_widget){

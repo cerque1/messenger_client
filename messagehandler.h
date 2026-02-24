@@ -23,6 +23,11 @@ signals:
     void UpdateMessageStatus(entities::Status);
     void ChangeMessage(int chat_id, int message_id, QString text);
     void DeleteChatMember(int chat_id, int member_id);
+    void IncomingCall(int chat_id, int caller_id, QString caller_name, QString offer_sdp);
+    void CallAccepted(int chat_id, QString answer_sdp);
+    void CallDeclined(int chat_id);
+    void CallEnded(int chat_id);
+    void CallCandidate(int chat_id, QString candidate, QString mid, int mline_index);
 };
 
 #endif // MESSAGEHANDLER_H
