@@ -77,7 +77,6 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
-
 win32 {
     VCPKG_ROOT = C:/Users/ikasy/vcpkg
 }
@@ -94,17 +93,17 @@ win32-g++ {
 
         VCPKG_BIN_DIR = $$VCPKG_INSTALLED/bin
         exists($$VCPKG_BIN_DIR/libdatachannel.dll) {
-            TARGET_DLL_DIR = $$OUT_PWD
-            !isEmpty(DESTDIR) {
-                TARGET_DLL_DIR = $$DESTDIR
+            TARGET_DLL_DIR = $$dirname(DESTDIR_TARGET)
+            isEmpty(TARGET_DLL_DIR) {
+                TARGET_DLL_DIR = $$OUT_PWD
             }
 
-            VCPKG_BIN_GLOB = $$replace(VCPKG_BIN_DIR,/,\\)\\*.dll
-            TARGET_DLL_WIN = $$replace(TARGET_DLL_DIR,/,\\)
+            # Копируем необходимые runtime DLL в директорию итогового exe.
+            QMAKE_POST_LINK += $$QMAKE_COPY $$shell_path($$VCPKG_BIN_DIR/libdatachannel.dll) $$shell_path($$TARGET_DLL_DIR) $$escape_expand(\n\t)
 
-            # Копируем все DLL из vcpkg/bin (включая зависимости libdatachannel,
-            # например libjuice.dll) рядом с итоговым exe.
-            QMAKE_POST_LINK += cmd /c copy /Y "$$VCPKG_BIN_GLOB" "$$TARGET_DLL_WIN" $$escape_expand(\n\t)
+            exists($$VCPKG_BIN_DIR/libjuice.dll) {
+                QMAKE_POST_LINK += $$QMAKE_COPY $$shell_path($$VCPKG_BIN_DIR/libjuice.dll) $$shell_path($$TARGET_DLL_DIR) $$escape_expand(\n\t)
+            }
         }
     }
 }
