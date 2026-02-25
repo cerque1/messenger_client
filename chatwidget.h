@@ -16,9 +16,10 @@ class QPushButton;
 class QDialog;
 class QLabel;
 class QCamera;
-class QCameraImageCapture;
-class QAudioInput;
-class QAudioOutput;
+class QMediaCaptureSession;
+class QImageCapture;
+class QAudioSource;
+class QAudioSink;
 class QIODevice;
 class QTimer;
 class QImage;
@@ -333,11 +334,12 @@ private:
     QLabel* remote_stream_label_ = nullptr;
 
     QCamera* camera_ = nullptr;
-    QCameraImageCapture* image_capture_ = nullptr;
+    QMediaCaptureSession* capture_session_ = nullptr;
+    QImageCapture* image_capture_ = nullptr;
     QTimer* video_capture_timer_ = nullptr;
-    QAudioInput* audio_input_ = nullptr;
+    QAudioSource* audio_source_ = nullptr;
     QIODevice* audio_input_device_ = nullptr;
-    QAudioOutput* audio_output_ = nullptr;
+    QAudioSink* audio_sink_ = nullptr;
     QIODevice* audio_output_device_ = nullptr;
     QTimer* audio_poll_timer_ = nullptr;
 

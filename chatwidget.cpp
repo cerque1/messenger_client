@@ -25,11 +25,12 @@
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
 #include <QCamera>
-#include <QCameraInfo>
-#include <QCameraImageCapture>
+#include <QMediaDevices>
+#include <QMediaCaptureSession>
+#include <QImageCapture>
 #include <QAudioFormat>
-#include <QAudioInput>
-#include <QAudioOutput>
+#include <QAudioSource>
+#include <QAudioSink>
 #include <QBuffer>
 #include <QImageWriter>
 #include <QImage>
@@ -1509,14 +1510,6 @@ void ChatWidget::UpdateMediaControls() {
         toggle_camera_button_->setText(camera_enabled_ ? "Камера: включена" : "Камера: выключена");
     }
 
-    if (audio_input_) {
-        if (microphone_enabled_) {
-            audio_input_->resume();
-        } else {
-            audio_input_->suspend();
-        }
-    }
-
     if (local_stream_label_ && !camera_enabled_) {
         local_stream_label_->setText("Камера отключена");
         local_stream_label_->setPixmap(QPixmap());
@@ -1525,12 +1518,14 @@ void ChatWidget::UpdateMediaControls() {
 
 void ChatWidget::StartMediaPipeline() {
     if (!camera_) {
-        const QList<QCameraInfo> cameras = QCameraInfo::availableCameras();
+        const auto cameras = QMediaDevices::videoInputs();
         if (!cameras.isEmpty()) {
             camera_ = new QCamera(cameras.first(), this);
-            image_capture_ = new QCameraImageCapture(camera_, this);
-            image_capture_->setCaptureDestination(QCameraImageCapture::CaptureToBuffer);
-            connect(image_capture_, &QCameraImageCapture::imageCaptured, this, &ChatWidget::OnLocalFrameCaptured);
+            capture_session_ = new QMediaCaptureSession(this);
+            image_capture_ = new QImageCapture(this);
+            capture_session_->setCamera(camera_);
+            capture_session_->setImageCapture(image_capture_);
+            connect(image_capture_, &QImageCapture::imageCaptured, this, &ChatWidget::OnLocalFrameCaptured);
             camera_->start();
 
             video_capture_timer_ = new QTimer(this);
@@ -1543,20 +1538,17 @@ void ChatWidget::StartMediaPipeline() {
         }
     }
 
-    if (!audio_input_) {
+    if (!audio_source_) {
         QAudioFormat format;
         format.setSampleRate(16000);
         format.setChannelCount(1);
-        format.setSampleSize(16);
-        format.setCodec("audio/pcm");
-        format.setByteOrder(QAudioFormat::LittleEndian);
-        format.setSampleType(QAudioFormat::SignedInt);
+        format.setSampleFormat(QAudioFormat::Int16);
 
-        audio_input_ = new QAudioInput(format, this);
-        audio_input_device_ = audio_input_->start();
+        audio_source_ = new QAudioSource(format, this);
+        audio_input_device_ = audio_source_->start();
 
-        audio_output_ = new QAudioOutput(format, this);
-        audio_output_device_ = audio_output_->start();
+        audio_sink_ = new QAudioSink(format, this);
+        audio_output_device_ = audio_sink_->start();
 
         audio_poll_timer_ = new QTimer(this);
         connect(audio_poll_timer_, &QTimer::timeout, this, &ChatWidget::SendAudioFrame);
@@ -1574,6 +1566,10 @@ void ChatWidget::StopMediaPipeline() {
         image_capture_->deleteLater();
         image_capture_ = nullptr;
     }
+    if (capture_session_) {
+        capture_session_->deleteLater();
+        capture_session_ = nullptr;
+    }
     if (camera_) {
         camera_->stop();
         camera_->deleteLater();
@@ -1585,16 +1581,16 @@ void ChatWidget::StopMediaPipeline() {
         audio_poll_timer_->deleteLater();
         audio_poll_timer_ = nullptr;
     }
-    if (audio_input_) {
-        audio_input_->stop();
-        audio_input_->deleteLater();
-        audio_input_ = nullptr;
+    if (audio_source_) {
+        audio_source_->stop();
+        audio_source_->deleteLater();
+        audio_source_ = nullptr;
         audio_input_device_ = nullptr;
     }
-    if (audio_output_) {
-        audio_output_->stop();
-        audio_output_->deleteLater();
-        audio_output_ = nullptr;
+    if (audio_sink_) {
+        audio_sink_->stop();
+        audio_sink_->deleteLater();
+        audio_sink_ = nullptr;
         audio_output_device_ = nullptr;
     }
 }
