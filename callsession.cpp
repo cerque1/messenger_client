@@ -75,10 +75,6 @@ void CallSession::setupPeerConnection() {
             return;
         }
 
-        if (media_channel_ && media_channel_->isOpen()) {
-            return;
-        }
-
         media_channel_ = channel;
         configureMediaChannel();
         flushPendingMediaPackets();
@@ -88,8 +84,16 @@ void CallSession::setupPeerConnection() {
     heartbeat_channel_.reset();
     media_channel_.reset();
 
-    heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
-    media_channel_ = peer_connection_->createDataChannel("call-media");
+    rtc::DataChannelInit heartbeatInit;
+    heartbeatInit.negotiated = true;
+    heartbeatInit.id = 0;
+
+    rtc::DataChannelInit mediaInit;
+    mediaInit.negotiated = true;
+    mediaInit.id = 1;
+
+    heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat", heartbeatInit);
+    media_channel_ = peer_connection_->createDataChannel("call-media", mediaInit);
     configureMediaChannel();
     flushPendingMediaPackets();
 #endif
