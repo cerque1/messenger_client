@@ -75,10 +75,6 @@ void CallSession::setupPeerConnection() {
             return;
         }
 
-        if (media_channel_ && media_channel_->isOpen()) {
-            return;
-        }
-
         media_channel_ = channel;
         configureMediaChannel();
         flushPendingMediaPackets();
@@ -88,16 +84,8 @@ void CallSession::setupPeerConnection() {
     heartbeat_channel_.reset();
     media_channel_.reset();
 
-    rtc::DataChannelInit heartbeatInit;
-    heartbeatInit.negotiated = true;
-    heartbeatInit.id = 0;
-
-    rtc::DataChannelInit mediaInit;
-    mediaInit.negotiated = true;
-    mediaInit.id = 1;
-
-    heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat", heartbeatInit);
-    media_channel_ = peer_connection_->createDataChannel("call-media", mediaInit);
+    heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
+    media_channel_ = peer_connection_->createDataChannel("call-media");
     configureMediaChannel();
     flushPendingMediaPackets();
 #endif
@@ -143,9 +131,8 @@ void CallSession::flushPendingMediaPackets() {
             media_channel_->send(std::move(payload));
             media_channel_open_.store(true);
             pending_media_packets_.pop_front();
-        } catch (const std::exception& ex) {
+        } catch (const std::exception&) {
             media_channel_open_.store(media_channel_->isOpen());
-            emit error(QString("Не удалось отправить отложенный медиапакет: %1").arg(ex.what()));
             break;
         }
     }
@@ -268,10 +255,9 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
         media_channel_->send(std::move(payload));
         media_channel_open_.store(true);
         flushPendingMediaPackets();
-    } catch (const std::exception& ex) {
+    } catch (const std::exception&) {
         media_channel_open_.store(media_channel_->isOpen());
         enqueuePending();
-        emit error(QString("Не удалось отправить медиапакет: %1").arg(ex.what()));
     }
 
     if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
