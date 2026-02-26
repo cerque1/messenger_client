@@ -37,7 +37,7 @@ void CallSession::configureMediaChannel() {
 #endif
 }
 
-void CallSession::setupPeerConnection(bool createLocalChannels) {
+void CallSession::setupPeerConnection() {
 #ifndef HAVE_LIBDATACHANNEL
     emit error("libdatachannel недоступна в этой сборке");
 #else
@@ -71,23 +71,27 @@ void CallSession::setupPeerConnection(bool createLocalChannels) {
     });
 
     peer_connection_->onDataChannel([this](std::shared_ptr<rtc::DataChannel> channel) {
-        if (channel && channel->label() == "call-media") {
-            media_channel_ = channel;
-            configureMediaChannel();
-            flushPendingMediaPackets();
+        if (!channel || channel->label() != "call-media") {
+            return;
         }
+
+        if (media_channel_ && media_channel_->isOpen()) {
+            return;
+        }
+
+        media_channel_ = channel;
+        configureMediaChannel();
+        flushPendingMediaPackets();
     });
 
     media_channel_open_.store(false);
     heartbeat_channel_.reset();
     media_channel_.reset();
 
-    if (createLocalChannels) {
-        heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
-        media_channel_ = peer_connection_->createDataChannel("call-media");
-        configureMediaChannel();
-        flushPendingMediaPackets();
-    }
+    heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
+    media_channel_ = peer_connection_->createDataChannel("call-media");
+    configureMediaChannel();
+    flushPendingMediaPackets();
 #endif
 }
 
@@ -141,7 +145,7 @@ void CallSession::flushPendingMediaPackets() {
 }
 
 bool CallSession::startOutgoing() {
-    setupPeerConnection(true);
+    setupPeerConnection();
 #ifdef HAVE_LIBDATACHANNEL
     remote_description_set_ = false;
     pending_remote_candidates_.clear();
@@ -153,7 +157,7 @@ bool CallSession::startOutgoing() {
 }
 
 bool CallSession::startIncoming(const QString& remoteOffer) {
-    setupPeerConnection(false);
+    setupPeerConnection();
 #ifdef HAVE_LIBDATACHANNEL
     remote_description_set_ = false;
     pending_remote_candidates_.clear();

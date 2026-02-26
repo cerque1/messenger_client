@@ -36,7 +36,7 @@ signals:
     void error(const QString& message);
 
 private:
-    void setupPeerConnection(bool createLocalChannels);
+    void setupPeerConnection();
     void configureMediaChannel();
     void flushPendingRemoteCandidates();
     void flushPendingMediaPackets();
