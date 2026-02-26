@@ -75,6 +75,10 @@ void CallSession::setupPeerConnection() {
             return;
         }
 
+        if (media_channel_) {
+            return;
+        }
+
         media_channel_ = channel;
         configureMediaChannel();
         flushPendingMediaPackets();
