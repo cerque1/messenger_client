@@ -37,7 +37,7 @@ void CallSession::configureMediaChannel() {
 #endif
 }
 
-void CallSession::setupPeerConnection() {
+void CallSession::setupPeerConnection(bool createLocalChannels) {
 #ifndef HAVE_LIBDATACHANNEL
     emit error("libdatachannel недоступна в этой сборке");
 #else
@@ -74,14 +74,20 @@ void CallSession::setupPeerConnection() {
         if (channel && channel->label() == "call-media") {
             media_channel_ = channel;
             configureMediaChannel();
+            flushPendingMediaPackets();
         }
     });
 
     media_channel_open_ = false;
-    heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
-    media_channel_ = peer_connection_->createDataChannel("call-media");
-    configureMediaChannel();
-    flushPendingMediaPackets();
+    heartbeat_channel_.reset();
+    media_channel_.reset();
+
+    if (createLocalChannels) {
+        heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
+        media_channel_ = peer_connection_->createDataChannel("call-media");
+        configureMediaChannel();
+        flushPendingMediaPackets();
+    }
 #endif
 }
 
@@ -133,7 +139,7 @@ void CallSession::flushPendingMediaPackets() {
 }
 
 bool CallSession::startOutgoing() {
-    setupPeerConnection();
+    setupPeerConnection(true);
 #ifdef HAVE_LIBDATACHANNEL
     remote_description_set_ = false;
     pending_remote_candidates_.clear();
@@ -145,7 +151,7 @@ bool CallSession::startOutgoing() {
 }
 
 bool CallSession::startIncoming(const QString& remoteOffer) {
-    setupPeerConnection();
+    setupPeerConnection(false);
 #ifdef HAVE_LIBDATACHANNEL
     remote_description_set_ = false;
     pending_remote_candidates_.clear();
@@ -226,11 +232,7 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
         return false;
     }
 
-    if (!media_channel_) {
-        return false;
-    }
-
-    if (!media_channel_open_) {
+    if (!media_channel_ || !media_channel_open_) {
         pending_media_packets_.push_back(packet);
         constexpr size_t kMaxPendingMediaPackets = 200;
         if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
