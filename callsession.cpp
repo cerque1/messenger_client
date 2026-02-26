@@ -15,6 +15,20 @@ void CallSession::configureMediaChannel() {
         return;
     }
 
+    media_channel_open_ = media_channel_->isOpen();
+
+    media_channel_->onOpen([this]() {
+        QMetaObject::invokeMethod(this, [this]() {
+            media_channel_open_ = true;
+        }, Qt::QueuedConnection);
+    });
+
+    media_channel_->onClosed([this]() {
+        QMetaObject::invokeMethod(this, [this]() {
+            media_channel_open_ = false;
+        }, Qt::QueuedConnection);
+    });
+
     media_channel_->onMessage([this](rtc::message_variant message) {
         if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
             QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
@@ -66,6 +80,7 @@ void CallSession::setupPeerConnection() {
         }
     });
 
+    media_channel_open_ = false;
     heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
     media_channel_ = peer_connection_->createDataChannel("call-media");
     configureMediaChannel();
@@ -180,14 +195,21 @@ bool CallSession::addRemoteCandidate(const QString& candidate, const QString& mi
 
 bool CallSession::sendMediaPacket(const QByteArray& packet) {
 #ifdef HAVE_LIBDATACHANNEL
-    if (!media_channel_) {
+    if (!media_channel_ || !media_channel_open_ || packet.isEmpty()) {
         return false;
     }
 
     rtc::binary payload;
     payload.resize(static_cast<size_t>(packet.size()));
     std::memcpy(payload.data(), packet.constData(), static_cast<size_t>(packet.size()));
-    media_channel_->send(std::move(payload));
+
+    try {
+        media_channel_->send(std::move(payload));
+    } catch (const std::exception& ex) {
+        emit error(QString("Не удалось отправить медиапакет: %1").arg(ex.what()));
+        return false;
+    }
+
     return true;
 #else
     Q_UNUSED(packet);
@@ -199,6 +221,7 @@ void CallSession::close() {
 #ifdef HAVE_LIBDATACHANNEL
     pending_remote_candidates_.clear();
     remote_description_set_ = false;
+    media_channel_open_ = false;
     media_channel_.reset();
     heartbeat_channel_.reset();
     peer_connection_.reset();

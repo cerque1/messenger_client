@@ -48,6 +48,7 @@ private:
     std::shared_ptr<rtc::PeerConnection> peer_connection_;
     std::shared_ptr<rtc::DataChannel> heartbeat_channel_;
     std::shared_ptr<rtc::DataChannel> media_channel_;
+    bool media_channel_open_ = false;
     bool remote_description_set_ = false;
     std::vector<PendingCandidate> pending_remote_candidates_;
 #endif
