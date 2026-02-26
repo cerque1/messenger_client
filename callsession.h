@@ -6,6 +6,7 @@
 #include <QByteArray>
 #include <memory>
 #include <vector>
+#include <deque>
 
 #ifdef HAVE_LIBDATACHANNEL
 #include <rtc/rtc.hpp>
@@ -37,6 +38,7 @@ private:
     void setupPeerConnection();
     void configureMediaChannel();
     void flushPendingRemoteCandidates();
+    void flushPendingMediaPackets();
 
     struct PendingCandidate {
         QString candidate;
@@ -51,6 +53,7 @@ private:
     bool media_channel_open_ = false;
     bool remote_description_set_ = false;
     std::vector<PendingCandidate> pending_remote_candidates_;
+    std::deque<QByteArray> pending_media_packets_;
 #endif
 };
 

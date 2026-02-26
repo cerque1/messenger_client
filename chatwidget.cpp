@@ -1593,7 +1593,7 @@ void ChatWidget::StartMediaPipeline() {
                     image_capture_->capture();
                 }
             });
-            video_capture_timer_->start(120);
+            video_capture_timer_->start(66);
         }
     }
 

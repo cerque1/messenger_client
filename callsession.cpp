@@ -18,15 +18,12 @@ void CallSession::configureMediaChannel() {
     media_channel_open_ = media_channel_->isOpen();
 
     media_channel_->onOpen([this]() {
-        QMetaObject::invokeMethod(this, [this]() {
-            media_channel_open_ = true;
-        }, Qt::QueuedConnection);
+        media_channel_open_ = true;
+        flushPendingMediaPackets();
     });
 
     media_channel_->onClosed([this]() {
-        QMetaObject::invokeMethod(this, [this]() {
-            media_channel_open_ = false;
-        }, Qt::QueuedConnection);
+        media_channel_open_ = false;
     });
 
     media_channel_->onMessage([this](rtc::message_variant message) {
@@ -84,6 +81,7 @@ void CallSession::setupPeerConnection() {
     heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
     media_channel_ = peer_connection_->createDataChannel("call-media");
     configureMediaChannel();
+    flushPendingMediaPackets();
 #endif
 }
 
@@ -102,6 +100,35 @@ void CallSession::flushPendingRemoteCandidates() {
         }
     }
     pending_remote_candidates_.clear();
+#endif
+}
+
+
+void CallSession::flushPendingMediaPackets() {
+#ifdef HAVE_LIBDATACHANNEL
+    if (!media_channel_ || !media_channel_open_) {
+        return;
+    }
+
+    while (!pending_media_packets_.empty()) {
+        rtc::binary payload;
+        const QByteArray packet = pending_media_packets_.front();
+        pending_media_packets_.pop_front();
+
+        if (packet.isEmpty()) {
+            continue;
+        }
+
+        payload.resize(static_cast<size_t>(packet.size()));
+        std::memcpy(payload.data(), packet.constData(), static_cast<size_t>(packet.size()));
+
+        try {
+            media_channel_->send(std::move(payload));
+        } catch (const std::exception& ex) {
+            emit error(QString("Не удалось отправить отложенный медиапакет: %1").arg(ex.what()));
+            break;
+        }
+    }
 #endif
 }
 
@@ -195,8 +222,21 @@ bool CallSession::addRemoteCandidate(const QString& candidate, const QString& mi
 
 bool CallSession::sendMediaPacket(const QByteArray& packet) {
 #ifdef HAVE_LIBDATACHANNEL
-    if (!media_channel_ || !media_channel_open_ || packet.isEmpty()) {
+    if (packet.isEmpty()) {
         return false;
+    }
+
+    if (!media_channel_) {
+        return false;
+    }
+
+    if (!media_channel_open_) {
+        pending_media_packets_.push_back(packet);
+        constexpr size_t kMaxPendingMediaPackets = 200;
+        if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
+            pending_media_packets_.pop_front();
+        }
+        return true;
     }
 
     rtc::binary payload;
@@ -220,6 +260,7 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
 void CallSession::close() {
 #ifdef HAVE_LIBDATACHANNEL
     pending_remote_candidates_.clear();
+    pending_media_packets_.clear();
     remote_description_set_ = false;
     media_channel_open_ = false;
     media_channel_.reset();
