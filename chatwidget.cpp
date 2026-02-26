@@ -36,6 +36,34 @@
 #include <QTimer>
 #include <QPixmap>
 
+namespace {
+QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
+    QAudioFormat requestedFormat;
+    requestedFormat.setSampleRate(16000);
+    requestedFormat.setChannelCount(1);
+    requestedFormat.setSampleFormat(QAudioFormat::Int16);
+
+    if (device.isNull()) {
+        return requestedFormat;
+    }
+
+    if (device.isFormatSupported(requestedFormat)) {
+        return requestedFormat;
+    }
+
+    QAudioFormat fallbackFormat = device.preferredFormat();
+
+    if (fallbackFormat.sampleRate() <= 0) {
+        fallbackFormat.setSampleRate(16000);
+    }
+    if (fallbackFormat.channelCount() <= 0) {
+        fallbackFormat.setChannelCount(1);
+    }
+
+    return fallbackFormat;
+}
+}
+
 MessageWidget::MessageWidget(const entities::Message& message, bool isNew, QWidget* parent)
     : QWidget(parent), chat_id_(message.chat_id_), message_id_(message.id_),
     current_status_(message.status_), sender_id_(message.sender_id_), is_changed_(message.is_changed_) {
@@ -1550,16 +1578,28 @@ void ChatWidget::StartMediaPipeline() {
     }
 
     if (!audio_source_) {
-        QAudioFormat format;
-        format.setSampleRate(16000);
-        format.setChannelCount(1);
-        format.setSampleFormat(QAudioFormat::Int16);
+        const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
+        const QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
 
-        audio_source_ = new QAudioSource(format, this);
+        const QAudioFormat inputFormat = BuildVoiceAudioFormat(inputDevice);
+        const QAudioFormat outputFormat = BuildVoiceAudioFormat(outputDevice);
+
+        if (inputDevice.isNull() || outputDevice.isNull()) {
+            utils::MakeMessageBox("Не удалось найти аудио-устройство. Проверьте настройки микрофона/динамика.");
+            return;
+        }
+
+        audio_source_ = new QAudioSource(inputDevice, inputFormat, this);
         audio_input_device_ = audio_source_->start();
 
-        audio_sink_ = new QAudioSink(format, this);
+        audio_sink_ = new QAudioSink(outputDevice, outputFormat, this);
         audio_output_device_ = audio_sink_->start();
+
+        if (!audio_input_device_ || !audio_output_device_) {
+            utils::MakeMessageBox("Не удалось запустить аудио-поток для звонка.");
+            StopMediaPipeline();
+            return;
+        }
 
         audio_poll_timer_ = new QTimer(this);
         connect(audio_poll_timer_, &QTimer::timeout, this, &ChatWidget::SendAudioFrame);

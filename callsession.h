@@ -5,6 +5,7 @@
 #include <QString>
 #include <QByteArray>
 #include <memory>
+#include <vector>
 
 #ifdef HAVE_LIBDATACHANNEL
 #include <rtc/rtc.hpp>
@@ -35,11 +36,20 @@ signals:
 private:
     void setupPeerConnection();
     void configureMediaChannel();
+    void flushPendingRemoteCandidates();
+
+    struct PendingCandidate {
+        QString candidate;
+        QString mid;
+        int mLineIndex;
+    };
 
 #ifdef HAVE_LIBDATACHANNEL
     std::shared_ptr<rtc::PeerConnection> peer_connection_;
     std::shared_ptr<rtc::DataChannel> heartbeat_channel_;
     std::shared_ptr<rtc::DataChannel> media_channel_;
+    bool remote_description_set_ = false;
+    std::vector<PendingCandidate> pending_remote_candidates_;
 #endif
 };
 

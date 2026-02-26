@@ -2,6 +2,7 @@
 
 #include <QMetaObject>
 #include <cstring>
+#include <exception>
 
 CallSession::CallSession(QObject* parent)
     : QObject(parent)
@@ -71,9 +72,29 @@ void CallSession::setupPeerConnection() {
 #endif
 }
 
+void CallSession::flushPendingRemoteCandidates() {
+#ifdef HAVE_LIBDATACHANNEL
+    if (!peer_connection_ || !remote_description_set_) {
+        return;
+    }
+
+    for (const PendingCandidate& pending : pending_remote_candidates_) {
+        try {
+            peer_connection_->addRemoteCandidate(
+                rtc::Candidate(pending.candidate.toStdString(), pending.mid.toStdString()));
+        } catch (const std::exception& ex) {
+            emit error(QString("Не удалось добавить отложенный ICE candidate: %1").arg(ex.what()));
+        }
+    }
+    pending_remote_candidates_.clear();
+#endif
+}
+
 bool CallSession::startOutgoing() {
     setupPeerConnection();
 #ifdef HAVE_LIBDATACHANNEL
+    remote_description_set_ = false;
+    pending_remote_candidates_.clear();
     peer_connection_->setLocalDescription();
     return true;
 #else
@@ -84,8 +105,19 @@ bool CallSession::startOutgoing() {
 bool CallSession::startIncoming(const QString& remoteOffer) {
     setupPeerConnection();
 #ifdef HAVE_LIBDATACHANNEL
-    peer_connection_->setRemoteDescription(rtc::Description(remoteOffer.toStdString(), "offer"));
-    peer_connection_->setLocalDescription();
+    remote_description_set_ = false;
+    pending_remote_candidates_.clear();
+
+    try {
+        peer_connection_->setRemoteDescription(rtc::Description(remoteOffer.toStdString(), "offer"));
+        remote_description_set_ = true;
+        flushPendingRemoteCandidates();
+        peer_connection_->setLocalDescription();
+    } catch (const std::exception& ex) {
+        emit error(QString("Не удалось применить удалённый offer: %1").arg(ex.what()));
+        return false;
+    }
+
     return true;
 #else
     Q_UNUSED(remoteOffer);
@@ -99,7 +131,16 @@ bool CallSession::applyRemoteAnswer(const QString& remoteAnswer) {
         emit error("PeerConnection не инициализирован");
         return false;
     }
-    peer_connection_->setRemoteDescription(rtc::Description(remoteAnswer.toStdString(), "answer"));
+
+    try {
+        peer_connection_->setRemoteDescription(rtc::Description(remoteAnswer.toStdString(), "answer"));
+        remote_description_set_ = true;
+        flushPendingRemoteCandidates();
+    } catch (const std::exception& ex) {
+        emit error(QString("Не удалось применить удалённый answer: %1").arg(ex.what()));
+        return false;
+    }
+
     return true;
 #else
     Q_UNUSED(remoteAnswer);
@@ -114,8 +155,20 @@ bool CallSession::addRemoteCandidate(const QString& candidate, const QString& mi
         emit error("PeerConnection не инициализирован");
         return false;
     }
-    peer_connection_->addRemoteCandidate(
-        rtc::Candidate(candidate.toStdString(), mid.toStdString()));
+
+    if (!remote_description_set_) {
+        pending_remote_candidates_.push_back(PendingCandidate{candidate, mid, mLineIndex});
+        return true;
+    }
+
+    try {
+        peer_connection_->addRemoteCandidate(
+            rtc::Candidate(candidate.toStdString(), mid.toStdString()));
+    } catch (const std::exception& ex) {
+        emit error(QString("Не удалось добавить ICE candidate: %1").arg(ex.what()));
+        return false;
+    }
+
     return true;
 #else
     Q_UNUSED(candidate);
@@ -144,6 +197,8 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
 
 void CallSession::close() {
 #ifdef HAVE_LIBDATACHANNEL
+    pending_remote_candidates_.clear();
+    remote_description_set_ = false;
     media_channel_.reset();
     heartbeat_channel_.reset();
     peer_connection_.reset();
