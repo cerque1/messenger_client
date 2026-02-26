@@ -15,15 +15,15 @@ void CallSession::configureMediaChannel() {
         return;
     }
 
-    media_channel_open_ = media_channel_->isOpen();
+    media_channel_open_.store(media_channel_->isOpen());
 
     media_channel_->onOpen([this]() {
-        media_channel_open_ = true;
+        media_channel_open_.store(true);
         flushPendingMediaPackets();
     });
 
     media_channel_->onClosed([this]() {
-        media_channel_open_ = false;
+        media_channel_open_.store(false);
     });
 
     media_channel_->onMessage([this](rtc::message_variant message) {
@@ -78,7 +78,7 @@ void CallSession::setupPeerConnection(bool createLocalChannels) {
         }
     });
 
-    media_channel_open_ = false;
+    media_channel_open_.store(false);
     heartbeat_channel_.reset();
     media_channel_.reset();
 
@@ -112,11 +112,13 @@ void CallSession::flushPendingRemoteCandidates() {
 
 void CallSession::flushPendingMediaPackets() {
 #ifdef HAVE_LIBDATACHANNEL
-    if (!media_channel_ || !media_channel_open_) {
+    if (!media_channel_ || (!media_channel_open_.load() && !media_channel_->isOpen())) {
         return;
     }
 
     while (!pending_media_packets_.empty()) {
+        media_channel_open_.store(media_channel_->isOpen());
+
         rtc::binary payload;
         const QByteArray packet = pending_media_packets_.front();
         pending_media_packets_.pop_front();
@@ -232,7 +234,7 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
         return false;
     }
 
-    if (!media_channel_ || !media_channel_open_) {
+    if (!media_channel_ || (!media_channel_open_.load() && !media_channel_->isOpen())) {
         pending_media_packets_.push_back(packet);
         constexpr size_t kMaxPendingMediaPackets = 200;
         if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
@@ -240,6 +242,8 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
         }
         return true;
     }
+
+    media_channel_open_.store(media_channel_->isOpen());
 
     rtc::binary payload;
     payload.resize(static_cast<size_t>(packet.size()));
@@ -264,7 +268,7 @@ void CallSession::close() {
     pending_remote_candidates_.clear();
     pending_media_packets_.clear();
     remote_description_set_ = false;
-    media_channel_open_ = false;
+    media_channel_open_.store(false);
     media_channel_.reset();
     heartbeat_channel_.reset();
     peer_connection_.reset();

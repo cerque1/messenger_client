@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <deque>
+#include <atomic>
 
 #ifdef HAVE_LIBDATACHANNEL
 #include <rtc/rtc.hpp>
@@ -50,7 +51,7 @@ private:
     std::shared_ptr<rtc::PeerConnection> peer_connection_;
     std::shared_ptr<rtc::DataChannel> heartbeat_channel_;
     std::shared_ptr<rtc::DataChannel> media_channel_;
-    bool media_channel_open_ = false;
+    std::atomic_bool media_channel_open_{false};
     bool remote_description_set_ = false;
     std::vector<PendingCandidate> pending_remote_candidates_;
     std::deque<QByteArray> pending_media_packets_;
