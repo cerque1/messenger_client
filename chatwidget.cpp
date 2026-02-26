@@ -32,7 +32,6 @@
 #include <QAudioSource>
 #include <QAudioSink>
 #include <QBuffer>
-#include <QImageWriter>
 #include <QImage>
 #include <QTimer>
 #include <QPixmap>
@@ -1295,14 +1294,26 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
     box->button(QDialogButtonBox::No)->setText("Отклонить");
     layout->addWidget(box);
 
-    connect(box, &QDialogButtonBox::accepted, this, [this]() {
+    connect(box, &QDialogButtonBox::accepted, this, [this, caller_name]() {
         active_call_chat_id_ = pending_incoming_chat_id_;
-        call_session_->startIncoming(pending_incoming_offer_);
+        if (!call_session_->startIncoming(pending_incoming_offer_)) {
+            active_call_chat_id_ = -1;
+            utils::MakeMessageBox("Не удалось инициализировать входящий звонок");
+            return;
+        }
+
         Request accept;
         accept.setPath("accept_call");
         accept.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
         accept.setValueToBody("chat_id", pending_incoming_chat_id_);
-        req_resp_utils::SendReqAndWaitResp(accept);
+        const Response acceptResp = req_resp_utils::SendReqAndWaitResp(accept);
+        if (acceptResp.getStatus() != 200) {
+            call_session_->close();
+            active_call_chat_id_ = -1;
+            utils::MakeMessageBox(acceptResp.getValueFromBody("message").toString());
+            return;
+        }
+
         if (incoming_call_dialog_) {
             incoming_call_dialog_->close();
         }
