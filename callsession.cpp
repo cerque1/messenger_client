@@ -75,7 +75,7 @@ void CallSession::setupPeerConnection() {
             return;
         }
 
-        if (media_channel_) {
+        if (media_channel_ && media_channel_->isOpen()) {
             return;
         }
 
@@ -124,27 +124,27 @@ void CallSession::flushPendingRemoteCandidates() {
 
 void CallSession::flushPendingMediaPackets() {
 #ifdef HAVE_LIBDATACHANNEL
-    if (!media_channel_ || (!media_channel_open_.load() && !media_channel_->isOpen())) {
+    if (!media_channel_) {
         return;
     }
 
     while (!pending_media_packets_.empty()) {
-        media_channel_open_.store(media_channel_->isOpen());
-
-        rtc::binary payload;
-        const QByteArray packet = pending_media_packets_.front();
-        pending_media_packets_.pop_front();
-
+        const QByteArray& packet = pending_media_packets_.front();
         if (packet.isEmpty()) {
+            pending_media_packets_.pop_front();
             continue;
         }
 
+        rtc::binary payload;
         payload.resize(static_cast<size_t>(packet.size()));
         std::memcpy(payload.data(), packet.constData(), static_cast<size_t>(packet.size()));
 
         try {
             media_channel_->send(std::move(payload));
+            media_channel_open_.store(true);
+            pending_media_packets_.pop_front();
         } catch (const std::exception& ex) {
+            media_channel_open_.store(media_channel_->isOpen());
             emit error(QString("Не удалось отправить отложенный медиапакет: %1").arg(ex.what()));
             break;
         }
@@ -246,16 +246,19 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
         return false;
     }
 
-    if (!media_channel_ || (!media_channel_open_.load() && !media_channel_->isOpen())) {
+    constexpr size_t kMaxPendingMediaPackets = 200;
+    auto enqueuePending = [this, &packet]() {
         pending_media_packets_.push_back(packet);
-        constexpr size_t kMaxPendingMediaPackets = 200;
-        if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
+        constexpr size_t kMaxPendingMediaPacketsInner = 200;
+        if (pending_media_packets_.size() > kMaxPendingMediaPacketsInner) {
             pending_media_packets_.pop_front();
         }
+    };
+
+    if (!media_channel_) {
+        enqueuePending();
         return true;
     }
-
-    media_channel_open_.store(media_channel_->isOpen());
 
     rtc::binary payload;
     payload.resize(static_cast<size_t>(packet.size()));
@@ -263,9 +266,16 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
 
     try {
         media_channel_->send(std::move(payload));
+        media_channel_open_.store(true);
+        flushPendingMediaPackets();
     } catch (const std::exception& ex) {
+        media_channel_open_.store(media_channel_->isOpen());
+        enqueuePending();
         emit error(QString("Не удалось отправить медиапакет: %1").arg(ex.what()));
-        return false;
+    }
+
+    if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
+        pending_media_packets_.pop_front();
     }
 
     return true;
