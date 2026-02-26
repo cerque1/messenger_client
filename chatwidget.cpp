@@ -23,6 +23,18 @@
 #include <QFrame>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QHBoxLayout>
+#include <QCamera>
+#include <QMediaDevices>
+#include <QMediaCaptureSession>
+#include <QImageCapture>
+#include <QAudioFormat>
+#include <QAudioSource>
+#include <QAudioSink>
+#include <QBuffer>
+#include <QImage>
+#include <QTimer>
+#include <QPixmap>
 
 MessageWidget::MessageWidget(const entities::Message& message, bool isNew, QWidget* parent)
     : QWidget(parent), chat_id_(message.chat_id_), message_id_(message.id_),
@@ -941,6 +953,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     connect(call_session_.get(), &CallSession::localOfferCreated, this, &ChatWidget::SendOffer);
     connect(call_session_.get(), &CallSession::localAnswerCreated, this, &ChatWidget::SendAnswer);
     connect(call_session_.get(), &CallSession::localCandidateCreated, this, &ChatWidget::SendCandidate);
+    connect(call_session_.get(), &CallSession::mediaPacketReceived, this, &ChatWidget::OnMediaPacketReceived);
     connect(call_session_.get(), &CallSession::error, [](const QString& message){ utils::MakeMessageBox(message); });
     connect(header, SIGNAL(startCallClicked(int,QString)), this, SLOT(StartCall(int,QString)));
     messages_in_chats_[chat_id] = {header, messages};
@@ -1233,11 +1246,13 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
 
     if (outgoing_call_dialog_) {
         outgoing_call_dialog_->close();
-        delete outgoing_call_dialog_;
+        outgoing_call_dialog_->deleteLater();
+        outgoing_call_dialog_ = nullptr;
     }
 
-    outgoing_call_dialog_ = new QDialog(this);
+    outgoing_call_dialog_ = new QDialog(nullptr);
     outgoing_call_dialog_->setWindowTitle(QString("Звонок: %1").arg(chat_name));
+    outgoing_call_dialog_->setWindowModality(Qt::ApplicationModal);
     QVBoxLayout* layout = new QVBoxLayout(outgoing_call_dialog_);
     layout->addWidget(new QLabel("Ожидание подключения собеседника..."));
     QPushButton* cancel = new QPushButton("Отменить", outgoing_call_dialog_);
@@ -1250,11 +1265,11 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
         req_resp_utils::SendReqAndWaitResp(decline);
         call_session_->close();
         active_call_chat_id_ = -1;
-        if (outgoing_call_dialog_) {
-            outgoing_call_dialog_->close();
-        }
+        CloseCallWindows();
     });
     outgoing_call_dialog_->show();
+    outgoing_call_dialog_->raise();
+    outgoing_call_dialog_->activateWindow();
 }
 
 void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name, QString offer_sdp) {
@@ -1264,11 +1279,13 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
 
     if (incoming_call_dialog_) {
         incoming_call_dialog_->close();
-        delete incoming_call_dialog_;
+        incoming_call_dialog_->deleteLater();
+        incoming_call_dialog_ = nullptr;
     }
 
-    incoming_call_dialog_ = new QDialog(this);
+    incoming_call_dialog_ = new QDialog(nullptr);
     incoming_call_dialog_->setWindowTitle("Входящий звонок");
+    incoming_call_dialog_->setWindowModality(Qt::ApplicationModal);
     QVBoxLayout* layout = new QVBoxLayout(incoming_call_dialog_);
     layout->addWidget(new QLabel(QString("Входящий звонок от %1").arg(caller_name)));
 
@@ -1277,15 +1294,30 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
     box->button(QDialogButtonBox::No)->setText("Отклонить");
     layout->addWidget(box);
 
-    connect(box, &QDialogButtonBox::accepted, this, [this]() {
+    connect(box, &QDialogButtonBox::accepted, this, [this, caller_name]() {
         active_call_chat_id_ = pending_incoming_chat_id_;
-        call_session_->startIncoming(pending_incoming_offer_);
+        if (!call_session_->startIncoming(pending_incoming_offer_)) {
+            active_call_chat_id_ = -1;
+            utils::MakeMessageBox("Не удалось инициализировать входящий звонок");
+            return;
+        }
+
         Request accept;
         accept.setPath("accept_call");
         accept.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
         accept.setValueToBody("chat_id", pending_incoming_chat_id_);
-        req_resp_utils::SendReqAndWaitResp(accept);
-        incoming_call_dialog_->close();
+        const Response acceptResp = req_resp_utils::SendReqAndWaitResp(accept);
+        if (acceptResp.getStatus() != 200) {
+            call_session_->close();
+            active_call_chat_id_ = -1;
+            utils::MakeMessageBox(acceptResp.getValueFromBody("message").toString());
+            return;
+        }
+
+        if (incoming_call_dialog_) {
+            incoming_call_dialog_->close();
+        }
+        OpenActiveCallWindow(QString("Разговор с %1").arg(caller_name));
     });
 
     connect(box, &QDialogButtonBox::rejected, this, [this]() {
@@ -1294,10 +1326,14 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
         decline.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
         decline.setValueToBody("chat_id", pending_incoming_chat_id_);
         req_resp_utils::SendReqAndWaitResp(decline);
-        incoming_call_dialog_->close();
+        if (incoming_call_dialog_) {
+            incoming_call_dialog_->close();
+        }
     });
 
     incoming_call_dialog_->show();
+    incoming_call_dialog_->raise();
+    incoming_call_dialog_->activateWindow();
 }
 
 void ChatWidget::OnCallAccepted(int chat_id, QString answer_sdp) {
@@ -1308,6 +1344,7 @@ void ChatWidget::OnCallAccepted(int chat_id, QString answer_sdp) {
     if (outgoing_call_dialog_) {
         outgoing_call_dialog_->close();
     }
+    OpenActiveCallWindow("Разговор");
 }
 
 void ChatWidget::OnCallDeclined(int chat_id) {
@@ -1316,9 +1353,7 @@ void ChatWidget::OnCallDeclined(int chat_id) {
     }
     call_session_->close();
     active_call_chat_id_ = -1;
-    if (outgoing_call_dialog_) {
-        outgoing_call_dialog_->close();
-    }
+    CloseCallWindows();
     utils::MakeMessageBox("Собеседник отклонил звонок");
 }
 
@@ -1328,6 +1363,7 @@ void ChatWidget::OnCallEnded(int chat_id) {
     }
     call_session_->close();
     active_call_chat_id_ = -1;
+    CloseCallWindows();
 }
 
 void ChatWidget::OnRemoteCandidate(int chat_id, QString candidate, QString mid, int mline_index) {
@@ -1373,6 +1409,274 @@ void ChatWidget::SendCandidate(QString candidate, QString mid, int mline_index) 
     req.setValueToBody("mid", mid);
     req.setValueToBody("mline_index", mline_index);
     req_resp_utils::SendReqAndWaitResp(req);
+}
+
+void ChatWidget::OpenActiveCallWindow(const QString& titleText) {
+    if (active_call_dialog_) {
+        active_call_dialog_->raise();
+        active_call_dialog_->activateWindow();
+        return;
+    }
+
+    active_call_dialog_ = new QDialog(nullptr);
+    active_call_dialog_->setAttribute(Qt::WA_DeleteOnClose, false);
+    active_call_dialog_->setWindowTitle(titleText);
+    active_call_dialog_->resize(900, 600);
+
+    QVBoxLayout* root = new QVBoxLayout(active_call_dialog_);
+    QLabel* callTitle = new QLabel(titleText, active_call_dialog_);
+    callTitle->setStyleSheet("font-size: 18px; font-weight: 700;");
+    root->addWidget(callTitle);
+
+    QHBoxLayout* streamsLayout = new QHBoxLayout();
+    remote_stream_label_ = new QLabel("Ожидание удалённого видео...", active_call_dialog_);
+    remote_stream_label_->setAlignment(Qt::AlignCenter);
+    remote_stream_label_->setMinimumSize(560, 320);
+    remote_stream_label_->setStyleSheet("background-color: #111827; border: 1px solid #374151; border-radius: 12px;");
+
+    local_stream_label_ = new QLabel("Локальное видео", active_call_dialog_);
+    local_stream_label_->setAlignment(Qt::AlignCenter);
+    local_stream_label_->setMinimumSize(220, 160);
+    local_stream_label_->setStyleSheet("background-color: #1f2937; border: 1px solid #4b5563; border-radius: 12px;");
+
+    streamsLayout->addWidget(remote_stream_label_, 3);
+    streamsLayout->addWidget(local_stream_label_, 1);
+    root->addLayout(streamsLayout, 1);
+
+    QHBoxLayout* controls = new QHBoxLayout();
+    toggle_mic_button_ = new QPushButton(active_call_dialog_);
+    toggle_camera_button_ = new QPushButton(active_call_dialog_);
+    QPushButton* endCallButton = new QPushButton("Завершить звонок", active_call_dialog_);
+    endCallButton->setStyleSheet("background-color: #dc2626; color: white; border-radius: 8px; padding: 8px 14px;");
+
+    controls->addWidget(toggle_mic_button_);
+    controls->addWidget(toggle_camera_button_);
+    controls->addStretch();
+    controls->addWidget(endCallButton);
+    root->addLayout(controls);
+
+    connect(toggle_mic_button_, &QPushButton::clicked, this, [this]() {
+        microphone_enabled_ = !microphone_enabled_;
+        UpdateMediaControls();
+    });
+    connect(toggle_camera_button_, &QPushButton::clicked, this, [this]() {
+        camera_enabled_ = !camera_enabled_;
+        UpdateMediaControls();
+    });
+    connect(endCallButton, &QPushButton::clicked, this, [this]() {
+        if (active_call_chat_id_ < 0) {
+            CloseCallWindows();
+            return;
+        }
+        Request endCallReq;
+        endCallReq.setPath("end_call");
+        endCallReq.setValueToBody("token", data::GeneralData::GetInstance()->GetToken());
+        endCallReq.setValueToBody("chat_id", active_call_chat_id_);
+        req_resp_utils::SendReqAndWaitResp(endCallReq);
+
+        call_session_->close();
+        active_call_chat_id_ = -1;
+        CloseCallWindows();
+    });
+
+    UpdateMediaControls();
+    StartMediaPipeline();
+    active_call_dialog_->show();
+    active_call_dialog_->raise();
+    active_call_dialog_->activateWindow();
+}
+
+void ChatWidget::CloseCallWindows() {
+    StopMediaPipeline();
+
+    if (outgoing_call_dialog_) {
+        outgoing_call_dialog_->close();
+        outgoing_call_dialog_->deleteLater();
+        outgoing_call_dialog_ = nullptr;
+    }
+    if (incoming_call_dialog_) {
+        incoming_call_dialog_->close();
+        incoming_call_dialog_->deleteLater();
+        incoming_call_dialog_ = nullptr;
+    }
+    if (active_call_dialog_) {
+        active_call_dialog_->close();
+        active_call_dialog_->deleteLater();
+        active_call_dialog_ = nullptr;
+    }
+
+    toggle_mic_button_ = nullptr;
+    toggle_camera_button_ = nullptr;
+    local_stream_label_ = nullptr;
+    remote_stream_label_ = nullptr;
+    microphone_enabled_ = true;
+    camera_enabled_ = true;
+}
+
+void ChatWidget::UpdateMediaControls() {
+    if (toggle_mic_button_) {
+        toggle_mic_button_->setText(microphone_enabled_ ? "Микрофон: включён" : "Микрофон: выключен");
+    }
+    if (toggle_camera_button_) {
+        toggle_camera_button_->setText(camera_enabled_ ? "Камера: включена" : "Камера: выключена");
+    }
+
+    if (local_stream_label_ && !camera_enabled_) {
+        local_stream_label_->setText("Камера отключена");
+        local_stream_label_->setPixmap(QPixmap());
+    }
+}
+
+void ChatWidget::StartMediaPipeline() {
+    if (!camera_) {
+        const auto cameras = QMediaDevices::videoInputs();
+        if (!cameras.isEmpty()) {
+            camera_ = new QCamera(cameras.first(), this);
+            capture_session_ = new QMediaCaptureSession(this);
+            image_capture_ = new QImageCapture(this);
+            capture_session_->setCamera(camera_);
+            capture_session_->setImageCapture(image_capture_);
+            connect(image_capture_, &QImageCapture::imageCaptured, this, &ChatWidget::OnLocalFrameCaptured);
+            camera_->start();
+
+            video_capture_timer_ = new QTimer(this);
+            connect(video_capture_timer_, &QTimer::timeout, this, [this]() {
+                if (camera_enabled_ && image_capture_ && image_capture_->isReadyForCapture()) {
+                    image_capture_->capture();
+                }
+            });
+            video_capture_timer_->start(120);
+        }
+    }
+
+    if (!audio_source_) {
+        QAudioFormat format;
+        format.setSampleRate(16000);
+        format.setChannelCount(1);
+        format.setSampleFormat(QAudioFormat::Int16);
+
+        audio_source_ = new QAudioSource(format, this);
+        audio_input_device_ = audio_source_->start();
+
+        audio_sink_ = new QAudioSink(format, this);
+        audio_output_device_ = audio_sink_->start();
+
+        audio_poll_timer_ = new QTimer(this);
+        connect(audio_poll_timer_, &QTimer::timeout, this, &ChatWidget::SendAudioFrame);
+        audio_poll_timer_->start(30);
+    }
+}
+
+void ChatWidget::StopMediaPipeline() {
+    if (video_capture_timer_) {
+        video_capture_timer_->stop();
+        video_capture_timer_->deleteLater();
+        video_capture_timer_ = nullptr;
+    }
+    if (image_capture_) {
+        image_capture_->deleteLater();
+        image_capture_ = nullptr;
+    }
+    if (capture_session_) {
+        capture_session_->deleteLater();
+        capture_session_ = nullptr;
+    }
+    if (camera_) {
+        camera_->stop();
+        camera_->deleteLater();
+        camera_ = nullptr;
+    }
+
+    if (audio_poll_timer_) {
+        audio_poll_timer_->stop();
+        audio_poll_timer_->deleteLater();
+        audio_poll_timer_ = nullptr;
+    }
+    if (audio_source_) {
+        audio_source_->stop();
+        audio_source_->deleteLater();
+        audio_source_ = nullptr;
+        audio_input_device_ = nullptr;
+    }
+    if (audio_sink_) {
+        audio_sink_->stop();
+        audio_sink_->deleteLater();
+        audio_sink_ = nullptr;
+        audio_output_device_ = nullptr;
+    }
+}
+
+void ChatWidget::OnLocalFrameCaptured(int id, const QImage& preview) {
+    Q_UNUSED(id);
+    if (!camera_enabled_ || preview.isNull()) {
+        return;
+    }
+
+    const QImage scaled = preview.scaled(320, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    if (local_stream_label_) {
+        local_stream_label_->setPixmap(QPixmap::fromImage(scaled));
+        local_stream_label_->setText(QString());
+    }
+
+    SendVideoFrame(scaled);
+}
+
+void ChatWidget::SendVideoFrame(const QImage& frame) {
+    QByteArray jpegData;
+    QBuffer buffer(&jpegData);
+    buffer.open(QIODevice::WriteOnly);
+    frame.save(&buffer, "JPEG", 55);
+
+    QByteArray packet;
+    packet.reserve(jpegData.size() + 1);
+    packet.append(static_cast<char>(0x01));
+    packet.append(jpegData);
+    call_session_->sendMediaPacket(packet);
+}
+
+void ChatWidget::SendAudioFrame() {
+    if (!microphone_enabled_ || !audio_input_device_) {
+        return;
+    }
+
+    const QByteArray pcmChunk = audio_input_device_->readAll();
+    if (pcmChunk.isEmpty()) {
+        return;
+    }
+
+    QByteArray packet;
+    packet.reserve(pcmChunk.size() + 1);
+    packet.append(static_cast<char>(0x02));
+    packet.append(pcmChunk);
+    call_session_->sendMediaPacket(packet);
+}
+
+void ChatWidget::OnMediaPacketReceived(const QByteArray& packet) {
+    if (packet.isEmpty()) {
+        return;
+    }
+
+    const quint8 packetType = static_cast<quint8>(packet.at(0));
+    const QByteArray payload = packet.mid(1);
+
+    if (packetType == 0x01) {
+        QImage remoteFrame;
+        remoteFrame.loadFromData(payload, "JPEG");
+        if (!remoteFrame.isNull() && remote_stream_label_) {
+            QImage scaled = remoteFrame.scaled(640, 360, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            remote_stream_label_->setPixmap(QPixmap::fromImage(scaled));
+            remote_stream_label_->setText(QString());
+        }
+    } else if (packetType == 0x02) {
+        PlayRemoteAudio(payload);
+    }
+}
+
+void ChatWidget::PlayRemoteAudio(const QByteArray& pcmData) {
+    if (!audio_output_device_ || pcmData.isEmpty()) {
+        return;
+    }
+    audio_output_device_->write(pcmData);
 }
 
 void ChatWidget::HideChat(){

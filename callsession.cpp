@@ -1,8 +1,28 @@
 #include "callsession.h"
 
+#include <QMetaObject>
+#include <cstring>
+
 CallSession::CallSession(QObject* parent)
     : QObject(parent)
 {
+}
+
+void CallSession::configureMediaChannel() {
+#ifdef HAVE_LIBDATACHANNEL
+    if (!media_channel_) {
+        return;
+    }
+
+    media_channel_->onMessage([this](rtc::message_variant message) {
+        if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
+            QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
+            QMetaObject::invokeMethod(this, [this, packet]() {
+                emit mediaPacketReceived(packet);
+            }, Qt::QueuedConnection);
+        }
+    });
+#endif
 }
 
 void CallSession::setupPeerConnection() {
@@ -38,7 +58,16 @@ void CallSession::setupPeerConnection() {
             0);
     });
 
+    peer_connection_->onDataChannel([this](std::shared_ptr<rtc::DataChannel> channel) {
+        if (channel && channel->label() == "call-media") {
+            media_channel_ = channel;
+            configureMediaChannel();
+        }
+    });
+
     heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
+    media_channel_ = peer_connection_->createDataChannel("call-media");
+    configureMediaChannel();
 #endif
 }
 
@@ -96,8 +125,26 @@ bool CallSession::addRemoteCandidate(const QString& candidate, const QString& mi
 #endif
 }
 
+bool CallSession::sendMediaPacket(const QByteArray& packet) {
+#ifdef HAVE_LIBDATACHANNEL
+    if (!media_channel_) {
+        return false;
+    }
+
+    rtc::binary payload;
+    payload.resize(static_cast<size_t>(packet.size()));
+    std::memcpy(payload.data(), packet.constData(), static_cast<size_t>(packet.size()));
+    media_channel_->send(std::move(payload));
+    return true;
+#else
+    Q_UNUSED(packet);
+    return false;
+#endif
+}
+
 void CallSession::close() {
 #ifdef HAVE_LIBDATACHANNEL
+    media_channel_.reset();
     heartbeat_channel_.reset();
     peer_connection_.reset();
 #endif

@@ -7,12 +7,22 @@
 #include <QVBoxLayout>
 #include <QScrollArea>
 #include <QList>
+#include <QByteArray>
 
 #include <mutex>
 
 class QTextEdit;
 class QPushButton;
 class QDialog;
+class QLabel;
+class QCamera;
+class QMediaCaptureSession;
+class QImageCapture;
+class QAudioSource;
+class QAudioSink;
+class QIODevice;
+class QTimer;
+class QImage;
 
 #include "entities.h"
 #include "chatheader.h"
@@ -291,10 +301,20 @@ private slots:
     void SendOffer(QString sdp);
     void SendAnswer(QString sdp);
     void SendCandidate(QString candidate, QString mid, int mline_index);
+    void OnLocalFrameCaptured(int id, const QImage& preview);
+    void OnMediaPacketReceived(const QByteArray& packet);
+    void SendAudioFrame();
 
 private:
     WidgetsToChat CreateChatWidgets(entities::ChatInfo info, bool is_dialog);
     void HideChat();
+    void OpenActiveCallWindow(const QString& titleText);
+    void CloseCallWindows();
+    void UpdateMediaControls();
+    void StartMediaPipeline();
+    void StopMediaPipeline();
+    void SendVideoFrame(const QImage& frame);
+    void PlayRemoteAudio(const QByteArray& pcmData);
 
     InputPanelWidget* input_panel_;
 
@@ -307,6 +327,24 @@ private:
     std::unique_ptr<CallSession> call_session_;
     QDialog* outgoing_call_dialog_ = nullptr;
     QDialog* incoming_call_dialog_ = nullptr;
+    QDialog* active_call_dialog_ = nullptr;
+    QPushButton* toggle_mic_button_ = nullptr;
+    QPushButton* toggle_camera_button_ = nullptr;
+    QLabel* local_stream_label_ = nullptr;
+    QLabel* remote_stream_label_ = nullptr;
+
+    QCamera* camera_ = nullptr;
+    QMediaCaptureSession* capture_session_ = nullptr;
+    QImageCapture* image_capture_ = nullptr;
+    QTimer* video_capture_timer_ = nullptr;
+    QAudioSource* audio_source_ = nullptr;
+    QIODevice* audio_input_device_ = nullptr;
+    QAudioSink* audio_sink_ = nullptr;
+    QIODevice* audio_output_device_ = nullptr;
+    QTimer* audio_poll_timer_ = nullptr;
+
+    bool microphone_enabled_ = true;
+    bool camera_enabled_ = true;
     int active_call_chat_id_ = -1;
     int pending_incoming_chat_id_ = -1;
     QString pending_incoming_offer_;
