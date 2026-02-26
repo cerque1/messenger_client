@@ -9,24 +9,27 @@ CallSession::CallSession(QObject* parent)
 {
 }
 
-void CallSession::configureMediaChannel() {
+void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel) {
 #ifdef HAVE_LIBDATACHANNEL
-    if (!media_channel_) {
+    if (!channel) {
         return;
     }
 
-    media_channel_open_.store(media_channel_->isOpen());
+    media_channel_open_.store(channel->isOpen());
 
-    media_channel_->onOpen([this]() {
+    channel->onOpen([this]() {
         media_channel_open_.store(true);
         flushPendingMediaPackets();
     });
 
-    media_channel_->onClosed([this]() {
-        media_channel_open_.store(false);
+    channel->onClosed([this]() {
+        const bool anyChannelOpen =
+            (outgoing_media_channel_ && outgoing_media_channel_->isOpen()) ||
+            (incoming_media_channel_ && incoming_media_channel_->isOpen());
+        media_channel_open_.store(anyChannelOpen);
     });
 
-    media_channel_->onMessage([this](rtc::message_variant message) {
+    channel->onMessage([this](rtc::message_variant message) {
         if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
             QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
             QMetaObject::invokeMethod(this, [this, packet]() {
@@ -47,6 +50,7 @@ void CallSession::setupPeerConnection() {
     peer_connection_->onStateChange([this](rtc::PeerConnection::State state) {
         if (state == rtc::PeerConnection::State::Connected) {
             emit connected();
+            flushPendingMediaPackets();
         } else if (state == rtc::PeerConnection::State::Disconnected ||
                    state == rtc::PeerConnection::State::Failed ||
                    state == rtc::PeerConnection::State::Closed) {
@@ -75,18 +79,19 @@ void CallSession::setupPeerConnection() {
             return;
         }
 
-        media_channel_ = channel;
-        configureMediaChannel();
+        incoming_media_channel_ = channel;
+        configureMediaChannel(incoming_media_channel_);
         flushPendingMediaPackets();
     });
 
     media_channel_open_.store(false);
     heartbeat_channel_.reset();
-    media_channel_.reset();
+    outgoing_media_channel_.reset();
+    incoming_media_channel_.reset();
 
     heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
-    media_channel_ = peer_connection_->createDataChannel("call-media");
-    configureMediaChannel();
+    outgoing_media_channel_ = peer_connection_->createDataChannel("call-media");
+    configureMediaChannel(outgoing_media_channel_);
     flushPendingMediaPackets();
 #endif
 }
@@ -109,10 +114,27 @@ void CallSession::flushPendingRemoteCandidates() {
 #endif
 }
 
+std::shared_ptr<rtc::DataChannel> CallSession::getWritableMediaChannel() const {
+#ifdef HAVE_LIBDATACHANNEL
+    if (outgoing_media_channel_ && outgoing_media_channel_->isOpen()) {
+        return outgoing_media_channel_;
+    }
+    if (incoming_media_channel_ && incoming_media_channel_->isOpen()) {
+        return incoming_media_channel_;
+    }
+    if (outgoing_media_channel_) {
+        return outgoing_media_channel_;
+    }
+    return incoming_media_channel_;
+#else
+    return nullptr;
+#endif
+}
 
 void CallSession::flushPendingMediaPackets() {
 #ifdef HAVE_LIBDATACHANNEL
-    if (!media_channel_) {
+    std::shared_ptr<rtc::DataChannel> channel = getWritableMediaChannel();
+    if (!channel) {
         return;
     }
 
@@ -128,11 +150,16 @@ void CallSession::flushPendingMediaPackets() {
         std::memcpy(payload.data(), packet.constData(), static_cast<size_t>(packet.size()));
 
         try {
-            media_channel_->send(std::move(payload));
+            channel->send(std::move(payload));
             media_channel_open_.store(true);
             pending_media_packets_.pop_front();
         } catch (const std::exception&) {
-            media_channel_open_.store(media_channel_->isOpen());
+            media_channel_open_.store(channel->isOpen());
+            break;
+        }
+
+        channel = getWritableMediaChannel();
+        if (!channel) {
             break;
         }
     }
@@ -185,6 +212,7 @@ bool CallSession::applyRemoteAnswer(const QString& remoteAnswer) {
         peer_connection_->setRemoteDescription(rtc::Description(remoteAnswer.toStdString(), "answer"));
         remote_description_set_ = true;
         flushPendingRemoteCandidates();
+        flushPendingMediaPackets();
     } catch (const std::exception& ex) {
         emit error(QString("Не удалось применить удалённый answer: %1").arg(ex.what()));
         return false;
@@ -233,16 +261,16 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
         return false;
     }
 
-    constexpr size_t kMaxPendingMediaPackets = 200;
     auto enqueuePending = [this, &packet]() {
         pending_media_packets_.push_back(packet);
-        constexpr size_t kMaxPendingMediaPacketsInner = 200;
-        if (pending_media_packets_.size() > kMaxPendingMediaPacketsInner) {
+        constexpr size_t kMaxPendingMediaPackets = 200;
+        if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
             pending_media_packets_.pop_front();
         }
     };
 
-    if (!media_channel_) {
+    std::shared_ptr<rtc::DataChannel> channel = getWritableMediaChannel();
+    if (!channel) {
         enqueuePending();
         return true;
     }
@@ -252,16 +280,12 @@ bool CallSession::sendMediaPacket(const QByteArray& packet) {
     std::memcpy(payload.data(), packet.constData(), static_cast<size_t>(packet.size()));
 
     try {
-        media_channel_->send(std::move(payload));
+        channel->send(std::move(payload));
         media_channel_open_.store(true);
         flushPendingMediaPackets();
     } catch (const std::exception&) {
-        media_channel_open_.store(media_channel_->isOpen());
+        media_channel_open_.store(channel->isOpen());
         enqueuePending();
-    }
-
-    if (pending_media_packets_.size() > kMaxPendingMediaPackets) {
-        pending_media_packets_.pop_front();
     }
 
     return true;
@@ -277,7 +301,8 @@ void CallSession::close() {
     pending_media_packets_.clear();
     remote_description_set_ = false;
     media_channel_open_.store(false);
-    media_channel_.reset();
+    incoming_media_channel_.reset();
+    outgoing_media_channel_.reset();
     heartbeat_channel_.reset();
     peer_connection_.reset();
 #endif
