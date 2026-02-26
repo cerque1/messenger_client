@@ -1262,7 +1262,9 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
     }
 
     active_call_chat_id_ = chat_id;
+    call_signaling_role_ = CallSignalingRole::Outgoing;
     if (!call_session_->startOutgoing()) {
+        call_signaling_role_ = CallSignalingRole::None;
         return;
     }
 
@@ -1293,6 +1295,7 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
         req_resp_utils::SendReqAndWaitResp(decline);
         call_session_->close();
         active_call_chat_id_ = -1;
+        call_signaling_role_ = CallSignalingRole::None;
         CloseCallWindows();
     });
     outgoing_call_dialog_->show();
@@ -1301,7 +1304,14 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
 }
 
 void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name, QString offer_sdp) {
-    Q_UNUSED(caller_id);
+    if (caller_id == data::GeneralData::GetInstance()->GetUserId()) {
+        return;
+    }
+
+    if (active_call_chat_id_ == chat_id && call_signaling_role_ == CallSignalingRole::Outgoing) {
+        return;
+    }
+
     pending_incoming_chat_id_ = chat_id;
     pending_incoming_offer_ = offer_sdp;
 
@@ -1324,8 +1334,10 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
 
     connect(box, &QDialogButtonBox::accepted, this, [this, caller_name]() {
         active_call_chat_id_ = pending_incoming_chat_id_;
+        call_signaling_role_ = CallSignalingRole::Incoming;
         if (!call_session_->startIncoming(pending_incoming_offer_)) {
             active_call_chat_id_ = -1;
+            call_signaling_role_ = CallSignalingRole::None;
             utils::MakeMessageBox("Не удалось инициализировать входящий звонок");
             return;
         }
@@ -1338,6 +1350,7 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
         if (acceptResp.getStatus() != 200) {
             call_session_->close();
             active_call_chat_id_ = -1;
+            call_signaling_role_ = CallSignalingRole::None;
             utils::MakeMessageBox(acceptResp.getValueFromBody("message").toString());
             return;
         }
@@ -1368,6 +1381,7 @@ void ChatWidget::OnCallAccepted(int chat_id, QString answer_sdp) {
     if (chat_id != active_call_chat_id_) {
         return;
     }
+    call_signaling_role_ = CallSignalingRole::Outgoing;
     call_session_->applyRemoteAnswer(answer_sdp);
     if (outgoing_call_dialog_) {
         outgoing_call_dialog_->close();
@@ -1381,6 +1395,7 @@ void ChatWidget::OnCallDeclined(int chat_id) {
     }
     call_session_->close();
     active_call_chat_id_ = -1;
+    call_signaling_role_ = CallSignalingRole::None;
     CloseCallWindows();
     utils::MakeMessageBox("Собеседник отклонил звонок");
 }
@@ -1391,6 +1406,7 @@ void ChatWidget::OnCallEnded(int chat_id) {
     }
     call_session_->close();
     active_call_chat_id_ = -1;
+    call_signaling_role_ = CallSignalingRole::None;
     CloseCallWindows();
 }
 
@@ -1402,7 +1418,7 @@ void ChatWidget::OnRemoteCandidate(int chat_id, QString candidate, QString mid, 
 }
 
 void ChatWidget::SendOffer(QString sdp) {
-    if (active_call_chat_id_ < 0) {
+    if (active_call_chat_id_ < 0 || call_signaling_role_ != CallSignalingRole::Outgoing) {
         return;
     }
     Request req;
@@ -1414,7 +1430,7 @@ void ChatWidget::SendOffer(QString sdp) {
 }
 
 void ChatWidget::SendAnswer(QString sdp) {
-    if (active_call_chat_id_ < 0) {
+    if (active_call_chat_id_ < 0 || call_signaling_role_ != CallSignalingRole::Incoming) {
         return;
     }
     Request req;
@@ -1504,6 +1520,7 @@ void ChatWidget::OpenActiveCallWindow(const QString& titleText) {
 
         call_session_->close();
         active_call_chat_id_ = -1;
+        call_signaling_role_ = CallSignalingRole::None;
         CloseCallWindows();
     });
 
@@ -1539,6 +1556,9 @@ void ChatWidget::CloseCallWindows() {
     remote_stream_label_ = nullptr;
     microphone_enabled_ = true;
     camera_enabled_ = true;
+    pending_incoming_chat_id_ = -1;
+    pending_incoming_offer_.clear();
+    call_signaling_role_ = CallSignalingRole::None;
 }
 
 void ChatWidget::UpdateMediaControls() {

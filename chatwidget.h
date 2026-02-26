@@ -307,6 +307,12 @@ private slots:
 
 private:
     WidgetsToChat CreateChatWidgets(entities::ChatInfo info, bool is_dialog);
+    enum class CallSignalingRole {
+        None,
+        Outgoing,
+        Incoming
+    };
+
     void HideChat();
     void OpenActiveCallWindow(const QString& titleText);
     void CloseCallWindows();
@@ -348,6 +354,7 @@ private:
     int active_call_chat_id_ = -1;
     int pending_incoming_chat_id_ = -1;
     QString pending_incoming_offer_;
+    CallSignalingRole call_signaling_role_ = CallSignalingRole::None;
 };
 
 #endif // CHATWIDGET_H
