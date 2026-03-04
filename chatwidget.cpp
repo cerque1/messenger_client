@@ -71,7 +71,6 @@ constexpr int kTransportSampleRate = 16000;
 int BytesPerSample(QAudioFormat::SampleFormat sampleFormat) {
     switch (sampleFormat) {
     case QAudioFormat::UInt8:
-    case QAudioFormat::Int8:
         return 1;
     case QAudioFormat::Int16:
         return 2;
@@ -120,9 +119,6 @@ QByteArray ConvertAudioToTransport(const QByteArray& rawPcm, const QAudioFormat&
             } else if (inputFormat.sampleFormat() == QAudioFormat::UInt8) {
                 const quint8 value = static_cast<quint8>(data[offset]);
                 sample = (static_cast<float>(value) - 128.0f) / 128.0f;
-            } else if (inputFormat.sampleFormat() == QAudioFormat::Int8) {
-                const qint8 value = static_cast<qint8>(data[offset]);
-                sample = static_cast<float>(value) / 128.0f;
             }
             accum += sample;
         }
@@ -186,9 +182,6 @@ QByteArray ConvertTransportToOutput(const QByteArray& transportPcm, const QAudio
             } else if (outputFormat.sampleFormat() == QAudioFormat::UInt8) {
                 const quint8 v = static_cast<quint8>(std::clamp(sample * 127.0f + 128.0f, 0.0f, 255.0f));
                 std::memcpy(outData + offset, &v, sizeof(quint8));
-            } else if (outputFormat.sampleFormat() == QAudioFormat::Int8) {
-                const qint8 v = static_cast<qint8>(std::clamp(sample * 127.0f, -128.0f, 127.0f));
-                std::memcpy(outData + offset, &v, sizeof(qint8));
             }
         }
     }
