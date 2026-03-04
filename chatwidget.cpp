@@ -1314,6 +1314,7 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
 
     pending_incoming_chat_id_ = chat_id;
     pending_incoming_offer_ = offer_sdp;
+    pending_incoming_candidates_.clear();
 
     if (incoming_call_dialog_) {
         incoming_call_dialog_->close();
@@ -1341,6 +1342,13 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
             utils::MakeMessageBox("Не удалось инициализировать входящий звонок");
             return;
         }
+
+        for (const auto& pendingCandidate : pending_incoming_candidates_) {
+            call_session_->addRemoteCandidate(std::get<0>(pendingCandidate),
+                                              std::get<1>(pendingCandidate),
+                                              std::get<2>(pendingCandidate));
+        }
+        pending_incoming_candidates_.clear();
 
         Request accept;
         accept.setPath("accept_call");
@@ -1411,10 +1419,14 @@ void ChatWidget::OnCallEnded(int chat_id) {
 }
 
 void ChatWidget::OnRemoteCandidate(int chat_id, QString candidate, QString mid, int mline_index) {
-    if (chat_id != active_call_chat_id_) {
+    if (chat_id == active_call_chat_id_) {
+        call_session_->addRemoteCandidate(candidate, mid, mline_index);
         return;
     }
-    call_session_->addRemoteCandidate(candidate, mid, mline_index);
+
+    if (chat_id == pending_incoming_chat_id_ && active_call_chat_id_ < 0) {
+        pending_incoming_candidates_.push_back(std::make_tuple(candidate, mid, mline_index));
+    }
 }
 
 void ChatWidget::SendOffer(QString sdp) {
@@ -1558,6 +1570,7 @@ void ChatWidget::CloseCallWindows() {
     camera_enabled_ = true;
     pending_incoming_chat_id_ = -1;
     pending_incoming_offer_.clear();
+    pending_incoming_candidates_.clear();
     call_signaling_role_ = CallSignalingRole::None;
 }
 

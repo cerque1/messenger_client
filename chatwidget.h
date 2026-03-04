@@ -8,6 +8,8 @@
 #include <QScrollArea>
 #include <QList>
 #include <QByteArray>
+#include <vector>
+#include <tuple>
 
 #include <mutex>
 
@@ -354,6 +356,7 @@ private:
     int active_call_chat_id_ = -1;
     int pending_incoming_chat_id_ = -1;
     QString pending_incoming_offer_;
+    std::vector<std::tuple<QString, QString, int>> pending_incoming_candidates_;
     CallSignalingRole call_signaling_role_ = CallSignalingRole::None;
 };
 
