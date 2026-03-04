@@ -23,6 +23,7 @@
 #include <QFrame>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QCamera>
 #include <QMediaDevices>
@@ -36,6 +37,7 @@
 #include <QTimer>
 #include <QPixmap>
 #include <QRandomGenerator>
+#include <QSignalBlocker>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -165,6 +167,48 @@ QByteArray ConvertAudioToTransport(const QByteArray& rawPcm, const QAudioFormat&
     }
 
     return out;
+}
+
+
+QAudioDevice ResolveAudioInputDevice(const QByteArray& preferredId) {
+    const auto devices = QMediaDevices::audioInputs();
+    if (!preferredId.isEmpty()) {
+        for (const QAudioDevice& device : devices) {
+            if (device.id() == preferredId) {
+                return device;
+            }
+        }
+    }
+    return QMediaDevices::defaultAudioInput();
+}
+
+QAudioDevice ResolveAudioOutputDevice(const QByteArray& preferredId) {
+    const auto devices = QMediaDevices::audioOutputs();
+    if (!preferredId.isEmpty()) {
+        for (const QAudioDevice& device : devices) {
+            if (device.id() == preferredId) {
+                return device;
+            }
+        }
+    }
+    return QMediaDevices::defaultAudioOutput();
+}
+
+QCameraDevice ResolveCameraDevice(const QByteArray& preferredId) {
+    const auto devices = QMediaDevices::videoInputs();
+    if (!preferredId.isEmpty()) {
+        for (const QCameraDevice& device : devices) {
+            if (device.id() == preferredId) {
+                return device;
+            }
+        }
+    }
+
+    if (!devices.isEmpty()) {
+        return devices.first();
+    }
+
+    return QCameraDevice();
 }
 
 QByteArray ConvertTransportToOutput(const QByteArray& transportPcm, const QAudioFormat& outputFormat) {
@@ -1662,6 +1706,48 @@ void ChatWidget::OpenActiveCallWindow(const QString& titleText) {
     streamsLayout->addWidget(local_stream_label_, 1);
     root->addLayout(streamsLayout, 1);
 
+    QHBoxLayout* deviceSelectors = new QHBoxLayout();
+    mic_device_combo_ = new QComboBox(active_call_dialog_);
+    speaker_device_combo_ = new QComboBox(active_call_dialog_);
+    camera_device_combo_ = new QComboBox(active_call_dialog_);
+
+    deviceSelectors->addWidget(new QLabel("Микрофон:", active_call_dialog_));
+    deviceSelectors->addWidget(mic_device_combo_, 1);
+    deviceSelectors->addWidget(new QLabel("Динамик:", active_call_dialog_));
+    deviceSelectors->addWidget(speaker_device_combo_, 1);
+    deviceSelectors->addWidget(new QLabel("Камера:", active_call_dialog_));
+    deviceSelectors->addWidget(camera_device_combo_, 1);
+    root->addLayout(deviceSelectors);
+
+    PopulateCallDeviceSelectors();
+
+    connect(mic_device_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (index < 0) {
+            return;
+        }
+        selected_input_device_id_ = mic_device_combo_->currentData().toByteArray();
+        StopMediaPipeline();
+        StartMediaPipeline();
+    });
+
+    connect(speaker_device_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (index < 0) {
+            return;
+        }
+        selected_output_device_id_ = speaker_device_combo_->currentData().toByteArray();
+        StopMediaPipeline();
+        StartMediaPipeline();
+    });
+
+    connect(camera_device_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (index < 0) {
+            return;
+        }
+        selected_camera_device_id_ = camera_device_combo_->currentData().toByteArray();
+        StopMediaPipeline();
+        StartMediaPipeline();
+    });
+
     QHBoxLayout* controls = new QHBoxLayout();
     toggle_mic_button_ = new QPushButton(active_call_dialog_);
     toggle_camera_button_ = new QPushButton(active_call_dialog_);
@@ -1706,6 +1792,58 @@ void ChatWidget::OpenActiveCallWindow(const QString& titleText) {
     active_call_dialog_->activateWindow();
 }
 
+
+void ChatWidget::PopulateCallDeviceSelectors() {
+    if (!mic_device_combo_ || !speaker_device_combo_ || !camera_device_combo_) {
+        return;
+    }
+
+    QSignalBlocker micBlocker(mic_device_combo_);
+    QSignalBlocker speakerBlocker(speaker_device_combo_);
+    QSignalBlocker cameraBlocker(camera_device_combo_);
+
+    mic_device_combo_->clear();
+    const auto inputDevices = QMediaDevices::audioInputs();
+    for (const QAudioDevice& device : inputDevices) {
+        mic_device_combo_->addItem(device.description(), device.id());
+    }
+
+    speaker_device_combo_->clear();
+    const auto outputDevices = QMediaDevices::audioOutputs();
+    for (const QAudioDevice& device : outputDevices) {
+        speaker_device_combo_->addItem(device.description(), device.id());
+    }
+
+    camera_device_combo_->clear();
+    const auto cameraDevices = QMediaDevices::videoInputs();
+    for (const QCameraDevice& device : cameraDevices) {
+        camera_device_combo_->addItem(device.description(), device.id());
+    }
+
+    if (selected_input_device_id_.isEmpty()) {
+        selected_input_device_id_ = QMediaDevices::defaultAudioInput().id();
+    }
+    if (selected_output_device_id_.isEmpty()) {
+        selected_output_device_id_ = QMediaDevices::defaultAudioOutput().id();
+    }
+    if (selected_camera_device_id_.isEmpty() && !cameraDevices.isEmpty()) {
+        selected_camera_device_id_ = cameraDevices.first().id();
+    }
+
+    const int micIndex = mic_device_combo_->findData(selected_input_device_id_);
+    if (micIndex >= 0) {
+        mic_device_combo_->setCurrentIndex(micIndex);
+    }
+    const int speakerIndex = speaker_device_combo_->findData(selected_output_device_id_);
+    if (speakerIndex >= 0) {
+        speaker_device_combo_->setCurrentIndex(speakerIndex);
+    }
+    const int cameraIndex = camera_device_combo_->findData(selected_camera_device_id_);
+    if (cameraIndex >= 0) {
+        camera_device_combo_->setCurrentIndex(cameraIndex);
+    }
+}
+
 void ChatWidget::CloseCallWindows() {
     StopMediaPipeline();
 
@@ -1729,6 +1867,9 @@ void ChatWidget::CloseCallWindows() {
     toggle_camera_button_ = nullptr;
     local_stream_label_ = nullptr;
     remote_stream_label_ = nullptr;
+    mic_device_combo_ = nullptr;
+    speaker_device_combo_ = nullptr;
+    camera_device_combo_ = nullptr;
     microphone_enabled_ = true;
     camera_enabled_ = true;
     pending_incoming_chat_id_ = -1;
@@ -1753,9 +1894,10 @@ void ChatWidget::UpdateMediaControls() {
 
 void ChatWidget::StartMediaPipeline() {
     if (!camera_) {
-        const auto cameras = QMediaDevices::videoInputs();
-        if (!cameras.isEmpty()) {
-            camera_ = new QCamera(cameras.first(), this);
+        const QCameraDevice selectedCamera = ResolveCameraDevice(selected_camera_device_id_);
+        if (!selectedCamera.isNull()) {
+            selected_camera_device_id_ = selectedCamera.id();
+            camera_ = new QCamera(selectedCamera, this);
             capture_session_ = new QMediaCaptureSession(this);
             image_capture_ = new QImageCapture(this);
             capture_session_->setCamera(camera_);
@@ -1774,8 +1916,11 @@ void ChatWidget::StartMediaPipeline() {
     }
 
     if (!audio_source_) {
-        const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
-        const QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
+        const QAudioDevice inputDevice = ResolveAudioInputDevice(selected_input_device_id_);
+        const QAudioDevice outputDevice = ResolveAudioOutputDevice(selected_output_device_id_);
+
+        selected_input_device_id_ = inputDevice.id();
+        selected_output_device_id_ = outputDevice.id();
 
         audio_input_format_ = BuildVoiceAudioFormat(inputDevice);
         audio_output_format_ = BuildVoiceAudioFormat(outputDevice);

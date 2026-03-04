@@ -18,6 +18,7 @@ class QTextEdit;
 class QPushButton;
 class QDialog;
 class QLabel;
+class QComboBox;
 class QCamera;
 class QMediaCaptureSession;
 class QImageCapture;
@@ -324,6 +325,7 @@ private:
     void StopMediaPipeline();
     void SendVideoFrame(const QImage& frame);
     void PlayRemoteAudio(const QByteArray& pcmData);
+    void PopulateCallDeviceSelectors();
 
     InputPanelWidget* input_panel_;
 
@@ -341,6 +343,9 @@ private:
     QPushButton* toggle_camera_button_ = nullptr;
     QLabel* local_stream_label_ = nullptr;
     QLabel* remote_stream_label_ = nullptr;
+    QComboBox* mic_device_combo_ = nullptr;
+    QComboBox* speaker_device_combo_ = nullptr;
+    QComboBox* camera_device_combo_ = nullptr;
 
     QCamera* camera_ = nullptr;
     QMediaCaptureSession* capture_session_ = nullptr;
@@ -354,6 +359,9 @@ private:
     QAudioFormat audio_input_format_;
     QAudioFormat audio_output_format_;
     quint32 local_media_sender_id_ = 0;
+    QByteArray selected_input_device_id_;
+    QByteArray selected_output_device_id_;
+    QByteArray selected_camera_device_id_;
 
     bool microphone_enabled_ = true;
     bool camera_enabled_ = true;
