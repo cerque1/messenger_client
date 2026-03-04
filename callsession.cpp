@@ -9,7 +9,7 @@ CallSession::CallSession(QObject* parent)
 {
 }
 
-void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel) {
+void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel, bool receiveMessages) {
 #ifdef HAVE_LIBDATACHANNEL
     if (!channel) {
         return;
@@ -29,14 +29,16 @@ void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>&
         media_channel_open_.store(anyChannelOpen);
     });
 
-    channel->onMessage([this](rtc::message_variant message) {
-        if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
-            QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
-            QMetaObject::invokeMethod(this, [this, packet]() {
-                emit mediaPacketReceived(packet);
-            }, Qt::QueuedConnection);
-        }
-    });
+    if (receiveMessages) {
+        channel->onMessage([this](rtc::message_variant message) {
+            if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
+                QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
+                QMetaObject::invokeMethod(this, [this, packet]() {
+                    emit mediaPacketReceived(packet);
+                }, Qt::QueuedConnection);
+            }
+        });
+    }
 #endif
 }
 
@@ -80,7 +82,7 @@ void CallSession::setupPeerConnection() {
         }
 
         incoming_media_channel_ = channel;
-        configureMediaChannel(incoming_media_channel_);
+        configureMediaChannel(incoming_media_channel_, true);
         flushPendingMediaPackets();
     });
 
@@ -91,7 +93,7 @@ void CallSession::setupPeerConnection() {
 
     heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
     outgoing_media_channel_ = peer_connection_->createDataChannel("call-media");
-    configureMediaChannel(outgoing_media_channel_);
+    configureMediaChannel(outgoing_media_channel_, false);
     flushPendingMediaPackets();
 #endif
 }
