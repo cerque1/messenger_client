@@ -69,6 +69,32 @@ QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
 
 constexpr int kTransportSampleRate = 16000;
 
+void AppendSenderId(QByteArray& packet, quint32 senderId) {
+    packet.append(static_cast<char>(senderId & 0xFF));
+    packet.append(static_cast<char>((senderId >> 8) & 0xFF));
+    packet.append(static_cast<char>((senderId >> 16) & 0xFF));
+    packet.append(static_cast<char>((senderId >> 24) & 0xFF));
+}
+
+bool ExtractSenderId(QByteArray& payload, quint32* senderId) {
+    if (payload.size() < 4 || !senderId) {
+        return false;
+    }
+
+    const unsigned char b0 = static_cast<unsigned char>(payload.at(0));
+    const unsigned char b1 = static_cast<unsigned char>(payload.at(1));
+    const unsigned char b2 = static_cast<unsigned char>(payload.at(2));
+    const unsigned char b3 = static_cast<unsigned char>(payload.at(3));
+
+    *senderId = static_cast<quint32>(b0)
+              | (static_cast<quint32>(b1) << 8)
+              | (static_cast<quint32>(b2) << 16)
+              | (static_cast<quint32>(b3) << 24);
+
+    payload = payload.mid(4);
+    return true;
+}
+
 int BytesPerSample(QAudioFormat::SampleFormat sampleFormat) {
     switch (sampleFormat) {
     case QAudioFormat::UInt8:
@@ -1096,9 +1122,14 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://localhost:1234")))
     , call_session_(std::make_unique<CallSession>())
 {
-    local_media_sender_id_ = QRandomGenerator::global()->generate();
-    if (local_media_sender_id_ == 0) {
-        local_media_sender_id_ = 1;
+    const int currentUserId = data::GeneralData::GetInstance()->GetUserId();
+    if (currentUserId > 0) {
+        local_media_sender_id_ = static_cast<quint32>(currentUserId);
+    } else {
+        local_media_sender_id_ = QRandomGenerator::global()->generate();
+        if (local_media_sender_id_ == 0) {
+            local_media_sender_id_ = 1;
+        }
     }
 
     this->setStyleSheet("QWidget { background-color: #0b0c0e; color: #e6e6e6; }");
@@ -1838,7 +1869,7 @@ void ChatWidget::SendVideoFrame(const QImage& frame) {
     QByteArray packet;
     packet.reserve(jpegData.size() + 1 + static_cast<int>(sizeof(quint32)));
     packet.append(static_cast<char>(0x01));
-    packet.append(reinterpret_cast<const char*>(&local_media_sender_id_), static_cast<int>(sizeof(quint32)));
+    AppendSenderId(packet, local_media_sender_id_);
     packet.append(jpegData);
     call_session_->sendMediaPacket(packet);
 }
@@ -1861,7 +1892,7 @@ void ChatWidget::SendAudioFrame() {
     QByteArray packet;
     packet.reserve(transportPcm.size() + 1 + static_cast<int>(sizeof(quint32)));
     packet.append(static_cast<char>(0x02));
-    packet.append(reinterpret_cast<const char*>(&local_media_sender_id_), static_cast<int>(sizeof(quint32)));
+    AppendSenderId(packet, local_media_sender_id_);
     packet.append(transportPcm);
     call_session_->sendMediaPacket(packet);
 }
@@ -1874,13 +1905,10 @@ void ChatWidget::OnMediaPacketReceived(const QByteArray& packet) {
     const quint8 packetType = static_cast<quint8>(packet.at(0));
     QByteArray payload = packet.mid(1);
 
-    if (payload.size() >= static_cast<int>(sizeof(quint32))) {
-        quint32 senderId = 0;
-        std::memcpy(&senderId, payload.constData(), sizeof(quint32));
-        if (senderId == local_media_sender_id_) {
-            return;
-        }
-        payload = payload.mid(static_cast<int>(sizeof(quint32)));
+    quint32 senderId = 0;
+    const bool hasSenderId = ExtractSenderId(payload, &senderId);
+    if (hasSenderId && senderId == local_media_sender_id_) {
+        return;
     }
 
     if (packetType == 0x01) {
