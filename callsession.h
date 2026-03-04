@@ -37,7 +37,7 @@ signals:
 
 private:
     void setupPeerConnection();
-    void configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel, bool receiveMessages);
+    void configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel);
     void flushPendingRemoteCandidates();
     void flushPendingMediaPackets();
     std::shared_ptr<rtc::DataChannel> getWritableMediaChannel() const;

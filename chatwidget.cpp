@@ -35,6 +35,7 @@
 #include <QImage>
 #include <QTimer>
 #include <QPixmap>
+#include <QRandomGenerator>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -1095,6 +1096,11 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://localhost:1234")))
     , call_session_(std::make_unique<CallSession>())
 {
+    local_media_sender_id_ = QRandomGenerator::global()->generate();
+    if (local_media_sender_id_ == 0) {
+        local_media_sender_id_ = 1;
+    }
+
     this->setStyleSheet("QWidget { background-color: #0b0c0e; color: #e6e6e6; }");
     QVBoxLayout* main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(0, 0, 0, 0);
@@ -1830,8 +1836,9 @@ void ChatWidget::SendVideoFrame(const QImage& frame) {
     frame.save(&buffer, "JPEG", 55);
 
     QByteArray packet;
-    packet.reserve(jpegData.size() + 1);
+    packet.reserve(jpegData.size() + 1 + static_cast<int>(sizeof(quint32)));
     packet.append(static_cast<char>(0x01));
+    packet.append(reinterpret_cast<const char*>(&local_media_sender_id_), static_cast<int>(sizeof(quint32)));
     packet.append(jpegData);
     call_session_->sendMediaPacket(packet);
 }
@@ -1852,8 +1859,9 @@ void ChatWidget::SendAudioFrame() {
     }
 
     QByteArray packet;
-    packet.reserve(transportPcm.size() + 1);
+    packet.reserve(transportPcm.size() + 1 + static_cast<int>(sizeof(quint32)));
     packet.append(static_cast<char>(0x02));
+    packet.append(reinterpret_cast<const char*>(&local_media_sender_id_), static_cast<int>(sizeof(quint32)));
     packet.append(transportPcm);
     call_session_->sendMediaPacket(packet);
 }
@@ -1864,7 +1872,16 @@ void ChatWidget::OnMediaPacketReceived(const QByteArray& packet) {
     }
 
     const quint8 packetType = static_cast<quint8>(packet.at(0));
-    const QByteArray payload = packet.mid(1);
+    QByteArray payload = packet.mid(1);
+
+    if (payload.size() >= static_cast<int>(sizeof(quint32))) {
+        quint32 senderId = 0;
+        std::memcpy(&senderId, payload.constData(), sizeof(quint32));
+        if (senderId == local_media_sender_id_) {
+            return;
+        }
+        payload = payload.mid(static_cast<int>(sizeof(quint32)));
+    }
 
     if (packetType == 0x01) {
         QImage remoteFrame;

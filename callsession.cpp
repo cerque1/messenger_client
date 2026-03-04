@@ -9,7 +9,7 @@ CallSession::CallSession(QObject* parent)
 {
 }
 
-void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel, bool receiveMessages) {
+void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>& channel) {
 #ifdef HAVE_LIBDATACHANNEL
     if (!channel) {
         return;
@@ -29,16 +29,14 @@ void CallSession::configureMediaChannel(const std::shared_ptr<rtc::DataChannel>&
         media_channel_open_.store(anyChannelOpen);
     });
 
-    if (receiveMessages) {
-        channel->onMessage([this](rtc::message_variant message) {
-            if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
-                QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
-                QMetaObject::invokeMethod(this, [this, packet]() {
-                    emit mediaPacketReceived(packet);
-                }, Qt::QueuedConnection);
-            }
-        });
-    }
+    channel->onMessage([this](rtc::message_variant message) {
+        if (const rtc::binary* payload = std::get_if<rtc::binary>(&message)) {
+            QByteArray packet(reinterpret_cast<const char*>(payload->data()), static_cast<int>(payload->size()));
+            QMetaObject::invokeMethod(this, [this, packet]() {
+                emit mediaPacketReceived(packet);
+            }, Qt::QueuedConnection);
+        }
+    });
 #endif
 }
 
@@ -82,7 +80,7 @@ void CallSession::setupPeerConnection() {
         }
 
         incoming_media_channel_ = channel;
-        configureMediaChannel(incoming_media_channel_, true);
+        configureMediaChannel(incoming_media_channel_);
         flushPendingMediaPackets();
     });
 
@@ -93,7 +91,7 @@ void CallSession::setupPeerConnection() {
 
     heartbeat_channel_ = peer_connection_->createDataChannel("call-heartbeat");
     outgoing_media_channel_ = peer_connection_->createDataChannel("call-media");
-    configureMediaChannel(outgoing_media_channel_, false);
+    configureMediaChannel(outgoing_media_channel_);
     flushPendingMediaPackets();
 #endif
 }

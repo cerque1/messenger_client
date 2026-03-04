@@ -353,6 +353,7 @@ private:
     QTimer* audio_poll_timer_ = nullptr;
     QAudioFormat audio_input_format_;
     QAudioFormat audio_output_format_;
+    quint32 local_media_sender_id_ = 0;
 
     bool microphone_enabled_ = true;
     bool camera_enabled_ = true;
