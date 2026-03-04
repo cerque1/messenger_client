@@ -8,6 +8,7 @@
 #include <QScrollArea>
 #include <QList>
 #include <QByteArray>
+#include <QAudioFormat>
 #include <vector>
 #include <tuple>
 
@@ -25,7 +26,6 @@ class QAudioSink;
 class QIODevice;
 class QTimer;
 class QImage;
-class QAudioFormat;
 
 #include "entities.h"
 #include "chatheader.h"

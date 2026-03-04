@@ -37,6 +37,7 @@
 #include <QPixmap>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace {
 QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
