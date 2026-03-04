@@ -8,6 +8,9 @@
 #include <QScrollArea>
 #include <QList>
 #include <QByteArray>
+#include <QAudioFormat>
+#include <vector>
+#include <tuple>
 
 #include <mutex>
 
@@ -307,6 +310,12 @@ private slots:
 
 private:
     WidgetsToChat CreateChatWidgets(entities::ChatInfo info, bool is_dialog);
+    enum class CallSignalingRole {
+        None,
+        Outgoing,
+        Incoming
+    };
+
     void HideChat();
     void OpenActiveCallWindow(const QString& titleText);
     void CloseCallWindows();
@@ -342,12 +351,17 @@ private:
     QAudioSink* audio_sink_ = nullptr;
     QIODevice* audio_output_device_ = nullptr;
     QTimer* audio_poll_timer_ = nullptr;
+    QAudioFormat audio_input_format_;
+    QAudioFormat audio_output_format_;
+    quint32 local_media_sender_id_ = 0;
 
     bool microphone_enabled_ = true;
     bool camera_enabled_ = true;
     int active_call_chat_id_ = -1;
     int pending_incoming_chat_id_ = -1;
     QString pending_incoming_offer_;
+    std::vector<std::tuple<QString, QString, int>> pending_incoming_candidates_;
+    CallSignalingRole call_signaling_role_ = CallSignalingRole::None;
 };
 
 #endif // CHATWIDGET_H

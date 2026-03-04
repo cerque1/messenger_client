@@ -35,6 +35,187 @@
 #include <QImage>
 #include <QTimer>
 #include <QPixmap>
+#include <QRandomGenerator>
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+
+namespace {
+QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
+    QAudioFormat requestedFormat;
+    requestedFormat.setSampleRate(16000);
+    requestedFormat.setChannelCount(1);
+    requestedFormat.setSampleFormat(QAudioFormat::Int16);
+
+    if (device.isNull()) {
+        return requestedFormat;
+    }
+
+    if (device.isFormatSupported(requestedFormat)) {
+        return requestedFormat;
+    }
+
+    QAudioFormat fallbackFormat = device.preferredFormat();
+
+    if (fallbackFormat.sampleRate() <= 0) {
+        fallbackFormat.setSampleRate(16000);
+    }
+    if (fallbackFormat.channelCount() <= 0) {
+        fallbackFormat.setChannelCount(1);
+    }
+
+    return fallbackFormat;
+}
+
+constexpr int kTransportSampleRate = 16000;
+
+void AppendSenderId(QByteArray& packet, quint32 senderId) {
+    packet.append(static_cast<char>(senderId & 0xFF));
+    packet.append(static_cast<char>((senderId >> 8) & 0xFF));
+    packet.append(static_cast<char>((senderId >> 16) & 0xFF));
+    packet.append(static_cast<char>((senderId >> 24) & 0xFF));
+}
+
+bool ExtractSenderId(QByteArray& payload, quint32* senderId) {
+    if (payload.size() < 4 || !senderId) {
+        return false;
+    }
+
+    const unsigned char b0 = static_cast<unsigned char>(payload.at(0));
+    const unsigned char b1 = static_cast<unsigned char>(payload.at(1));
+    const unsigned char b2 = static_cast<unsigned char>(payload.at(2));
+    const unsigned char b3 = static_cast<unsigned char>(payload.at(3));
+
+    *senderId = static_cast<quint32>(b0)
+              | (static_cast<quint32>(b1) << 8)
+              | (static_cast<quint32>(b2) << 16)
+              | (static_cast<quint32>(b3) << 24);
+
+    payload = payload.mid(4);
+    return true;
+}
+
+int BytesPerSample(QAudioFormat::SampleFormat sampleFormat) {
+    switch (sampleFormat) {
+    case QAudioFormat::UInt8:
+        return 1;
+    case QAudioFormat::Int16:
+        return 2;
+    case QAudioFormat::Int32:
+    case QAudioFormat::Float:
+        return 4;
+    default:
+        return 0;
+    }
+}
+
+QByteArray ConvertAudioToTransport(const QByteArray& rawPcm, const QAudioFormat& inputFormat) {
+    const int channels = std::max(1, inputFormat.channelCount());
+    const int sampleRate = std::max(1, inputFormat.sampleRate());
+    const int bytesPerSample = BytesPerSample(inputFormat.sampleFormat());
+    if (bytesPerSample <= 0 || rawPcm.isEmpty()) {
+        return {};
+    }
+
+    const int frameBytes = bytesPerSample * channels;
+    const int frameCount = rawPcm.size() / frameBytes;
+    if (frameCount <= 0) {
+        return {};
+    }
+
+    std::vector<float> mono(static_cast<size_t>(frameCount));
+    const char* data = rawPcm.constData();
+
+    for (int frame = 0; frame < frameCount; ++frame) {
+        float accum = 0.0f;
+        for (int channel = 0; channel < channels; ++channel) {
+            const int offset = frame * frameBytes + channel * bytesPerSample;
+            float sample = 0.0f;
+            if (inputFormat.sampleFormat() == QAudioFormat::Int16) {
+                qint16 value = 0;
+                std::memcpy(&value, data + offset, sizeof(qint16));
+                sample = static_cast<float>(value) / 32768.0f;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::Int32) {
+                qint32 value = 0;
+                std::memcpy(&value, data + offset, sizeof(qint32));
+                sample = static_cast<float>(value) / 2147483648.0f;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::Float) {
+                float value = 0.0f;
+                std::memcpy(&value, data + offset, sizeof(float));
+                sample = value;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::UInt8) {
+                const quint8 value = static_cast<quint8>(data[offset]);
+                sample = (static_cast<float>(value) - 128.0f) / 128.0f;
+            }
+            accum += sample;
+        }
+        mono[static_cast<size_t>(frame)] = accum / static_cast<float>(channels);
+    }
+
+    const int outFrames = std::max(1, static_cast<int>(
+        std::llround(static_cast<double>(frameCount) * kTransportSampleRate / sampleRate)));
+    QByteArray out(static_cast<int>(outFrames * sizeof(qint16)), Qt::Uninitialized);
+    qint16* outData = reinterpret_cast<qint16*>(out.data());
+
+    for (int i = 0; i < outFrames; ++i) {
+        const double srcPos = static_cast<double>(i) * sampleRate / kTransportSampleRate;
+        const int srcIndex = std::clamp(static_cast<int>(srcPos), 0, frameCount - 1);
+        const float clamped = std::clamp(mono[static_cast<size_t>(srcIndex)], -1.0f, 1.0f);
+        outData[i] = static_cast<qint16>(clamped * 32767.0f);
+    }
+
+    return out;
+}
+
+QByteArray ConvertTransportToOutput(const QByteArray& transportPcm, const QAudioFormat& outputFormat) {
+    if (transportPcm.isEmpty()) {
+        return {};
+    }
+
+    const int outChannels = std::max(1, outputFormat.channelCount());
+    const int outRate = std::max(1, outputFormat.sampleRate());
+    const int outBps = BytesPerSample(outputFormat.sampleFormat());
+    if (outBps <= 0) {
+        return {};
+    }
+
+    const int inFrames = transportPcm.size() / static_cast<int>(sizeof(qint16));
+    if (inFrames <= 0) {
+        return {};
+    }
+
+    const qint16* inData = reinterpret_cast<const qint16*>(transportPcm.constData());
+    const int outFrames = std::max(1, static_cast<int>(
+        std::llround(static_cast<double>(inFrames) * outRate / kTransportSampleRate)));
+    QByteArray out(outFrames * outChannels * outBps, Qt::Uninitialized);
+    char* outData = out.data();
+
+    for (int i = 0; i < outFrames; ++i) {
+        const double srcPos = static_cast<double>(i) * kTransportSampleRate / outRate;
+        const int srcIndex = std::clamp(static_cast<int>(srcPos), 0, inFrames - 1);
+        const float sample = static_cast<float>(inData[srcIndex]) / 32768.0f;
+
+        for (int ch = 0; ch < outChannels; ++ch) {
+            const int offset = (i * outChannels + ch) * outBps;
+            if (outputFormat.sampleFormat() == QAudioFormat::Int16) {
+                const qint16 v = static_cast<qint16>(std::clamp(sample, -1.0f, 1.0f) * 32767.0f);
+                std::memcpy(outData + offset, &v, sizeof(qint16));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::Int32) {
+                const qint32 v = static_cast<qint32>(std::clamp(sample, -1.0f, 1.0f) * 2147483647.0f);
+                std::memcpy(outData + offset, &v, sizeof(qint32));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::Float) {
+                const float v = std::clamp(sample, -1.0f, 1.0f);
+                std::memcpy(outData + offset, &v, sizeof(float));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::UInt8) {
+                const quint8 v = static_cast<quint8>(std::clamp(sample * 127.0f + 128.0f, 0.0f, 255.0f));
+                std::memcpy(outData + offset, &v, sizeof(quint8));
+            }
+        }
+    }
+
+    return out;
+}
+}
 
 MessageWidget::MessageWidget(const entities::Message& message, bool isNew, QWidget* parent)
     : QWidget(parent), chat_id_(message.chat_id_), message_id_(message.id_),
@@ -941,6 +1122,16 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://localhost:1234")))
     , call_session_(std::make_unique<CallSession>())
 {
+    const int currentUserId = data::GeneralData::GetInstance()->GetUserId();
+    if (currentUserId > 0) {
+        local_media_sender_id_ = static_cast<quint32>(currentUserId);
+    } else {
+        local_media_sender_id_ = QRandomGenerator::global()->generate();
+        if (local_media_sender_id_ == 0) {
+            local_media_sender_id_ = 1;
+        }
+    }
+
     this->setStyleSheet("QWidget { background-color: #0b0c0e; color: #e6e6e6; }");
     QVBoxLayout* main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(0, 0, 0, 0);
@@ -1234,7 +1425,9 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
     }
 
     active_call_chat_id_ = chat_id;
+    call_signaling_role_ = CallSignalingRole::Outgoing;
     if (!call_session_->startOutgoing()) {
+        call_signaling_role_ = CallSignalingRole::None;
         return;
     }
 
@@ -1265,6 +1458,7 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
         req_resp_utils::SendReqAndWaitResp(decline);
         call_session_->close();
         active_call_chat_id_ = -1;
+        call_signaling_role_ = CallSignalingRole::None;
         CloseCallWindows();
     });
     outgoing_call_dialog_->show();
@@ -1273,9 +1467,17 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
 }
 
 void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name, QString offer_sdp) {
-    Q_UNUSED(caller_id);
+    if (caller_id == data::GeneralData::GetInstance()->GetUserId()) {
+        return;
+    }
+
+    if (active_call_chat_id_ == chat_id && call_signaling_role_ == CallSignalingRole::Outgoing) {
+        return;
+    }
+
     pending_incoming_chat_id_ = chat_id;
     pending_incoming_offer_ = offer_sdp;
+    pending_incoming_candidates_.clear();
 
     if (incoming_call_dialog_) {
         incoming_call_dialog_->close();
@@ -1296,11 +1498,20 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
 
     connect(box, &QDialogButtonBox::accepted, this, [this, caller_name]() {
         active_call_chat_id_ = pending_incoming_chat_id_;
+        call_signaling_role_ = CallSignalingRole::Incoming;
         if (!call_session_->startIncoming(pending_incoming_offer_)) {
             active_call_chat_id_ = -1;
+            call_signaling_role_ = CallSignalingRole::None;
             utils::MakeMessageBox("Не удалось инициализировать входящий звонок");
             return;
         }
+
+        for (const auto& pendingCandidate : pending_incoming_candidates_) {
+            call_session_->addRemoteCandidate(std::get<0>(pendingCandidate),
+                                              std::get<1>(pendingCandidate),
+                                              std::get<2>(pendingCandidate));
+        }
+        pending_incoming_candidates_.clear();
 
         Request accept;
         accept.setPath("accept_call");
@@ -1310,6 +1521,7 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
         if (acceptResp.getStatus() != 200) {
             call_session_->close();
             active_call_chat_id_ = -1;
+            call_signaling_role_ = CallSignalingRole::None;
             utils::MakeMessageBox(acceptResp.getValueFromBody("message").toString());
             return;
         }
@@ -1340,6 +1552,7 @@ void ChatWidget::OnCallAccepted(int chat_id, QString answer_sdp) {
     if (chat_id != active_call_chat_id_) {
         return;
     }
+    call_signaling_role_ = CallSignalingRole::Outgoing;
     call_session_->applyRemoteAnswer(answer_sdp);
     if (outgoing_call_dialog_) {
         outgoing_call_dialog_->close();
@@ -1353,6 +1566,7 @@ void ChatWidget::OnCallDeclined(int chat_id) {
     }
     call_session_->close();
     active_call_chat_id_ = -1;
+    call_signaling_role_ = CallSignalingRole::None;
     CloseCallWindows();
     utils::MakeMessageBox("Собеседник отклонил звонок");
 }
@@ -1363,18 +1577,23 @@ void ChatWidget::OnCallEnded(int chat_id) {
     }
     call_session_->close();
     active_call_chat_id_ = -1;
+    call_signaling_role_ = CallSignalingRole::None;
     CloseCallWindows();
 }
 
 void ChatWidget::OnRemoteCandidate(int chat_id, QString candidate, QString mid, int mline_index) {
-    if (chat_id != active_call_chat_id_) {
+    if (chat_id == active_call_chat_id_) {
+        call_session_->addRemoteCandidate(candidate, mid, mline_index);
         return;
     }
-    call_session_->addRemoteCandidate(candidate, mid, mline_index);
+
+    if (chat_id == pending_incoming_chat_id_ && active_call_chat_id_ < 0) {
+        pending_incoming_candidates_.push_back(std::make_tuple(candidate, mid, mline_index));
+    }
 }
 
 void ChatWidget::SendOffer(QString sdp) {
-    if (active_call_chat_id_ < 0) {
+    if (active_call_chat_id_ < 0 || call_signaling_role_ != CallSignalingRole::Outgoing) {
         return;
     }
     Request req;
@@ -1386,7 +1605,7 @@ void ChatWidget::SendOffer(QString sdp) {
 }
 
 void ChatWidget::SendAnswer(QString sdp) {
-    if (active_call_chat_id_ < 0) {
+    if (active_call_chat_id_ < 0 || call_signaling_role_ != CallSignalingRole::Incoming) {
         return;
     }
     Request req;
@@ -1476,6 +1695,7 @@ void ChatWidget::OpenActiveCallWindow(const QString& titleText) {
 
         call_session_->close();
         active_call_chat_id_ = -1;
+        call_signaling_role_ = CallSignalingRole::None;
         CloseCallWindows();
     });
 
@@ -1511,6 +1731,10 @@ void ChatWidget::CloseCallWindows() {
     remote_stream_label_ = nullptr;
     microphone_enabled_ = true;
     camera_enabled_ = true;
+    pending_incoming_chat_id_ = -1;
+    pending_incoming_offer_.clear();
+    pending_incoming_candidates_.clear();
+    call_signaling_role_ = CallSignalingRole::None;
 }
 
 void ChatWidget::UpdateMediaControls() {
@@ -1545,21 +1769,33 @@ void ChatWidget::StartMediaPipeline() {
                     image_capture_->capture();
                 }
             });
-            video_capture_timer_->start(120);
+            video_capture_timer_->start(66);
         }
     }
 
     if (!audio_source_) {
-        QAudioFormat format;
-        format.setSampleRate(16000);
-        format.setChannelCount(1);
-        format.setSampleFormat(QAudioFormat::Int16);
+        const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
+        const QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
 
-        audio_source_ = new QAudioSource(format, this);
+        audio_input_format_ = BuildVoiceAudioFormat(inputDevice);
+        audio_output_format_ = BuildVoiceAudioFormat(outputDevice);
+
+        if (inputDevice.isNull() || outputDevice.isNull()) {
+            utils::MakeMessageBox("Не удалось найти аудио-устройство. Проверьте настройки микрофона/динамика.");
+            return;
+        }
+
+        audio_source_ = new QAudioSource(inputDevice, audio_input_format_, this);
         audio_input_device_ = audio_source_->start();
 
-        audio_sink_ = new QAudioSink(format, this);
+        audio_sink_ = new QAudioSink(outputDevice, audio_output_format_, this);
         audio_output_device_ = audio_sink_->start();
+
+        if (!audio_input_device_ || !audio_output_device_) {
+            utils::MakeMessageBox("Не удалось запустить аудио-поток для звонка.");
+            StopMediaPipeline();
+            return;
+        }
 
         audio_poll_timer_ = new QTimer(this);
         connect(audio_poll_timer_, &QTimer::timeout, this, &ChatWidget::SendAudioFrame);
@@ -1604,6 +1840,9 @@ void ChatWidget::StopMediaPipeline() {
         audio_sink_ = nullptr;
         audio_output_device_ = nullptr;
     }
+
+    audio_input_format_ = QAudioFormat();
+    audio_output_format_ = QAudioFormat();
 }
 
 void ChatWidget::OnLocalFrameCaptured(int id, const QImage& preview) {
@@ -1628,8 +1867,9 @@ void ChatWidget::SendVideoFrame(const QImage& frame) {
     frame.save(&buffer, "JPEG", 55);
 
     QByteArray packet;
-    packet.reserve(jpegData.size() + 1);
+    packet.reserve(jpegData.size() + 1 + static_cast<int>(sizeof(quint32)));
     packet.append(static_cast<char>(0x01));
+    AppendSenderId(packet, local_media_sender_id_);
     packet.append(jpegData);
     call_session_->sendMediaPacket(packet);
 }
@@ -1644,10 +1884,16 @@ void ChatWidget::SendAudioFrame() {
         return;
     }
 
+    const QByteArray transportPcm = ConvertAudioToTransport(pcmChunk, audio_input_format_);
+    if (transportPcm.isEmpty()) {
+        return;
+    }
+
     QByteArray packet;
-    packet.reserve(pcmChunk.size() + 1);
+    packet.reserve(transportPcm.size() + 1 + static_cast<int>(sizeof(quint32)));
     packet.append(static_cast<char>(0x02));
-    packet.append(pcmChunk);
+    AppendSenderId(packet, local_media_sender_id_);
+    packet.append(transportPcm);
     call_session_->sendMediaPacket(packet);
 }
 
@@ -1657,7 +1903,13 @@ void ChatWidget::OnMediaPacketReceived(const QByteArray& packet) {
     }
 
     const quint8 packetType = static_cast<quint8>(packet.at(0));
-    const QByteArray payload = packet.mid(1);
+    QByteArray payload = packet.mid(1);
+
+    quint32 senderId = 0;
+    const bool hasSenderId = ExtractSenderId(payload, &senderId);
+    if (hasSenderId && senderId == local_media_sender_id_) {
+        return;
+    }
 
     if (packetType == 0x01) {
         QImage remoteFrame;
@@ -1676,7 +1928,13 @@ void ChatWidget::PlayRemoteAudio(const QByteArray& pcmData) {
     if (!audio_output_device_ || pcmData.isEmpty()) {
         return;
     }
-    audio_output_device_->write(pcmData);
+
+    const QByteArray outputPcm = ConvertTransportToOutput(pcmData, audio_output_format_);
+    if (outputPcm.isEmpty()) {
+        return;
+    }
+
+    audio_output_device_->write(outputPcm);
 }
 
 void ChatWidget::HideChat(){
