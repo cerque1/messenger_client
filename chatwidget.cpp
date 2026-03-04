@@ -35,6 +35,8 @@
 #include <QImage>
 #include <QTimer>
 #include <QPixmap>
+#include <algorithm>
+#include <cmath>
 
 namespace {
 QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
@@ -61,6 +63,136 @@ QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
     }
 
     return fallbackFormat;
+}
+
+constexpr int kTransportSampleRate = 16000;
+
+int BytesPerSample(QAudioFormat::SampleFormat sampleFormat) {
+    switch (sampleFormat) {
+    case QAudioFormat::UInt8:
+    case QAudioFormat::Int8:
+        return 1;
+    case QAudioFormat::Int16:
+        return 2;
+    case QAudioFormat::Int32:
+    case QAudioFormat::Float:
+        return 4;
+    default:
+        return 0;
+    }
+}
+
+QByteArray ConvertAudioToTransport(const QByteArray& rawPcm, const QAudioFormat& inputFormat) {
+    const int channels = std::max(1, inputFormat.channelCount());
+    const int sampleRate = std::max(1, inputFormat.sampleRate());
+    const int bytesPerSample = BytesPerSample(inputFormat.sampleFormat());
+    if (bytesPerSample <= 0 || rawPcm.isEmpty()) {
+        return {};
+    }
+
+    const int frameBytes = bytesPerSample * channels;
+    const int frameCount = rawPcm.size() / frameBytes;
+    if (frameCount <= 0) {
+        return {};
+    }
+
+    std::vector<float> mono(static_cast<size_t>(frameCount));
+    const char* data = rawPcm.constData();
+
+    for (int frame = 0; frame < frameCount; ++frame) {
+        float accum = 0.0f;
+        for (int channel = 0; channel < channels; ++channel) {
+            const int offset = frame * frameBytes + channel * bytesPerSample;
+            float sample = 0.0f;
+            if (inputFormat.sampleFormat() == QAudioFormat::Int16) {
+                qint16 value = 0;
+                std::memcpy(&value, data + offset, sizeof(qint16));
+                sample = static_cast<float>(value) / 32768.0f;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::Int32) {
+                qint32 value = 0;
+                std::memcpy(&value, data + offset, sizeof(qint32));
+                sample = static_cast<float>(value) / 2147483648.0f;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::Float) {
+                float value = 0.0f;
+                std::memcpy(&value, data + offset, sizeof(float));
+                sample = value;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::UInt8) {
+                const quint8 value = static_cast<quint8>(data[offset]);
+                sample = (static_cast<float>(value) - 128.0f) / 128.0f;
+            } else if (inputFormat.sampleFormat() == QAudioFormat::Int8) {
+                const qint8 value = static_cast<qint8>(data[offset]);
+                sample = static_cast<float>(value) / 128.0f;
+            }
+            accum += sample;
+        }
+        mono[static_cast<size_t>(frame)] = accum / static_cast<float>(channels);
+    }
+
+    const int outFrames = std::max(1, static_cast<int>(
+        std::llround(static_cast<double>(frameCount) * kTransportSampleRate / sampleRate)));
+    QByteArray out(static_cast<int>(outFrames * sizeof(qint16)), Qt::Uninitialized);
+    qint16* outData = reinterpret_cast<qint16*>(out.data());
+
+    for (int i = 0; i < outFrames; ++i) {
+        const double srcPos = static_cast<double>(i) * sampleRate / kTransportSampleRate;
+        const int srcIndex = std::clamp(static_cast<int>(srcPos), 0, frameCount - 1);
+        const float clamped = std::clamp(mono[static_cast<size_t>(srcIndex)], -1.0f, 1.0f);
+        outData[i] = static_cast<qint16>(clamped * 32767.0f);
+    }
+
+    return out;
+}
+
+QByteArray ConvertTransportToOutput(const QByteArray& transportPcm, const QAudioFormat& outputFormat) {
+    if (transportPcm.isEmpty()) {
+        return {};
+    }
+
+    const int outChannels = std::max(1, outputFormat.channelCount());
+    const int outRate = std::max(1, outputFormat.sampleRate());
+    const int outBps = BytesPerSample(outputFormat.sampleFormat());
+    if (outBps <= 0) {
+        return {};
+    }
+
+    const int inFrames = transportPcm.size() / static_cast<int>(sizeof(qint16));
+    if (inFrames <= 0) {
+        return {};
+    }
+
+    const qint16* inData = reinterpret_cast<const qint16*>(transportPcm.constData());
+    const int outFrames = std::max(1, static_cast<int>(
+        std::llround(static_cast<double>(inFrames) * outRate / kTransportSampleRate)));
+    QByteArray out(outFrames * outChannels * outBps, Qt::Uninitialized);
+    char* outData = out.data();
+
+    for (int i = 0; i < outFrames; ++i) {
+        const double srcPos = static_cast<double>(i) * kTransportSampleRate / outRate;
+        const int srcIndex = std::clamp(static_cast<int>(srcPos), 0, inFrames - 1);
+        const float sample = static_cast<float>(inData[srcIndex]) / 32768.0f;
+
+        for (int ch = 0; ch < outChannels; ++ch) {
+            const int offset = (i * outChannels + ch) * outBps;
+            if (outputFormat.sampleFormat() == QAudioFormat::Int16) {
+                const qint16 v = static_cast<qint16>(std::clamp(sample, -1.0f, 1.0f) * 32767.0f);
+                std::memcpy(outData + offset, &v, sizeof(qint16));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::Int32) {
+                const qint32 v = static_cast<qint32>(std::clamp(sample, -1.0f, 1.0f) * 2147483647.0f);
+                std::memcpy(outData + offset, &v, sizeof(qint32));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::Float) {
+                const float v = std::clamp(sample, -1.0f, 1.0f);
+                std::memcpy(outData + offset, &v, sizeof(float));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::UInt8) {
+                const quint8 v = static_cast<quint8>(std::clamp(sample * 127.0f + 128.0f, 0.0f, 255.0f));
+                std::memcpy(outData + offset, &v, sizeof(quint8));
+            } else if (outputFormat.sampleFormat() == QAudioFormat::Int8) {
+                const qint8 v = static_cast<qint8>(std::clamp(sample * 127.0f, -128.0f, 127.0f));
+                std::memcpy(outData + offset, &v, sizeof(qint8));
+            }
+        }
+    }
+
+    return out;
 }
 }
 
@@ -1614,18 +1746,18 @@ void ChatWidget::StartMediaPipeline() {
         const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
         const QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
 
-        const QAudioFormat inputFormat = BuildVoiceAudioFormat(inputDevice);
-        const QAudioFormat outputFormat = BuildVoiceAudioFormat(outputDevice);
+        audio_input_format_ = BuildVoiceAudioFormat(inputDevice);
+        audio_output_format_ = BuildVoiceAudioFormat(outputDevice);
 
         if (inputDevice.isNull() || outputDevice.isNull()) {
             utils::MakeMessageBox("Не удалось найти аудио-устройство. Проверьте настройки микрофона/динамика.");
             return;
         }
 
-        audio_source_ = new QAudioSource(inputDevice, inputFormat, this);
+        audio_source_ = new QAudioSource(inputDevice, audio_input_format_, this);
         audio_input_device_ = audio_source_->start();
 
-        audio_sink_ = new QAudioSink(outputDevice, outputFormat, this);
+        audio_sink_ = new QAudioSink(outputDevice, audio_output_format_, this);
         audio_output_device_ = audio_sink_->start();
 
         if (!audio_input_device_ || !audio_output_device_) {
@@ -1677,6 +1809,9 @@ void ChatWidget::StopMediaPipeline() {
         audio_sink_ = nullptr;
         audio_output_device_ = nullptr;
     }
+
+    audio_input_format_ = QAudioFormat();
+    audio_output_format_ = QAudioFormat();
 }
 
 void ChatWidget::OnLocalFrameCaptured(int id, const QImage& preview) {
@@ -1717,10 +1852,15 @@ void ChatWidget::SendAudioFrame() {
         return;
     }
 
+    const QByteArray transportPcm = ConvertAudioToTransport(pcmChunk, audio_input_format_);
+    if (transportPcm.isEmpty()) {
+        return;
+    }
+
     QByteArray packet;
-    packet.reserve(pcmChunk.size() + 1);
+    packet.reserve(transportPcm.size() + 1);
     packet.append(static_cast<char>(0x02));
-    packet.append(pcmChunk);
+    packet.append(transportPcm);
     call_session_->sendMediaPacket(packet);
 }
 
@@ -1749,7 +1889,13 @@ void ChatWidget::PlayRemoteAudio(const QByteArray& pcmData) {
     if (!audio_output_device_ || pcmData.isEmpty()) {
         return;
     }
-    audio_output_device_->write(pcmData);
+
+    const QByteArray outputPcm = ConvertTransportToOutput(pcmData, audio_output_format_);
+    if (outputPcm.isEmpty()) {
+        return;
+    }
+
+    audio_output_device_->write(outputPcm);
 }
 
 void ChatWidget::HideChat(){

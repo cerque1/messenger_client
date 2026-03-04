@@ -25,6 +25,7 @@ class QAudioSink;
 class QIODevice;
 class QTimer;
 class QImage;
+class QAudioFormat;
 
 #include "entities.h"
 #include "chatheader.h"
@@ -350,6 +351,8 @@ private:
     QAudioSink* audio_sink_ = nullptr;
     QIODevice* audio_output_device_ = nullptr;
     QTimer* audio_poll_timer_ = nullptr;
+    QAudioFormat audio_input_format_;
+    QAudioFormat audio_output_format_;
 
     bool microphone_enabled_ = true;
     bool camera_enabled_ = true;
