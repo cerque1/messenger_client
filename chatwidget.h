@@ -8,6 +8,9 @@
 #include <QScrollArea>
 #include <QList>
 #include <QByteArray>
+#include <QAudioFormat>
+#include <vector>
+#include <tuple>
 
 #include <mutex>
 
@@ -15,6 +18,7 @@ class QTextEdit;
 class QPushButton;
 class QDialog;
 class QLabel;
+class QComboBox;
 class QCamera;
 class QMediaCaptureSession;
 class QImageCapture;
@@ -307,6 +311,12 @@ private slots:
 
 private:
     WidgetsToChat CreateChatWidgets(entities::ChatInfo info, bool is_dialog);
+    enum class CallSignalingRole {
+        None,
+        Outgoing,
+        Incoming
+    };
+
     void HideChat();
     void OpenActiveCallWindow(const QString& titleText);
     void CloseCallWindows();
@@ -315,6 +325,7 @@ private:
     void StopMediaPipeline();
     void SendVideoFrame(const QImage& frame);
     void PlayRemoteAudio(const QByteArray& pcmData);
+    void PopulateCallDeviceSelectors();
 
     InputPanelWidget* input_panel_;
 
@@ -332,6 +343,9 @@ private:
     QPushButton* toggle_camera_button_ = nullptr;
     QLabel* local_stream_label_ = nullptr;
     QLabel* remote_stream_label_ = nullptr;
+    QComboBox* mic_device_combo_ = nullptr;
+    QComboBox* speaker_device_combo_ = nullptr;
+    QComboBox* camera_device_combo_ = nullptr;
 
     QCamera* camera_ = nullptr;
     QMediaCaptureSession* capture_session_ = nullptr;
@@ -342,12 +356,20 @@ private:
     QAudioSink* audio_sink_ = nullptr;
     QIODevice* audio_output_device_ = nullptr;
     QTimer* audio_poll_timer_ = nullptr;
+    QAudioFormat audio_input_format_;
+    QAudioFormat audio_output_format_;
+    quint32 local_media_sender_id_ = 0;
+    QByteArray selected_input_device_id_;
+    QByteArray selected_output_device_id_;
+    QByteArray selected_camera_device_id_;
 
     bool microphone_enabled_ = true;
     bool camera_enabled_ = true;
     int active_call_chat_id_ = -1;
     int pending_incoming_chat_id_ = -1;
     QString pending_incoming_offer_;
+    std::vector<std::tuple<QString, QString, int>> pending_incoming_candidates_;
+    CallSignalingRole call_signaling_role_ = CallSignalingRole::None;
 };
 
 #endif // CHATWIDGET_H
