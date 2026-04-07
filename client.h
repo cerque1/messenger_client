@@ -28,6 +28,7 @@ public slots:
     void SendRequestSlot(QByteArray message);
     void OnBinaryMessageReceived(QByteArray message);
     void InitWebSocketSlot();
+    void OnDisconnected();
 
 private:
     QWebSocket* socket_;

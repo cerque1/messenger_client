@@ -17,14 +17,14 @@ int main(int argc, char *argv[])
     qDebug() << QThread::currentThread();
     QThread* processor_thread = new QThread();
     auto messages_processor = std::make_shared<MessagesProcessor>();
-    auto client = std::make_shared<Client>("ws://localhost:1234", messages_processor);
+    auto client = std::make_shared<Client>("ws://192.168.0.156:1234", messages_processor);
     messages_processor->moveToThread(processor_thread);
     client->moveToThread(processor_thread);
     processor_thread->start();
 
     data::GeneralData::GetInstance()->SetClient(client);
     MessageHandler* handler = new MessageHandler(&*data::GeneralData::GetInstance()->GetClient());
-    MainPage page(handler, "ws://localhost:1234");
+    MainPage page(handler, "ws://192.168.0.156:1234");
     std::unique_ptr<MainWindow> log_reg_window;
 
     QThread* thread = new QThread();

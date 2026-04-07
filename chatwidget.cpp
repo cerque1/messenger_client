@@ -1163,7 +1163,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     : QWidget(parent)
     , chat_id_(chat_id)
     , upload_manager_worker_(upload_manager_worker)
-    , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://localhost:1234")))
+    , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://192.168.0.156:1234")))
     , call_session_(std::make_unique<CallSession>())
 {
     const int currentUserId = data::GeneralData::GetInstance()->GetUserId();
