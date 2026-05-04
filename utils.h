@@ -6,7 +6,7 @@
 
 namespace utils{
 
-void MakeMessageBox(QString text);
+std::shared_ptr<QMessageBox> MakeMessageBox(QString text);
 
 }
 

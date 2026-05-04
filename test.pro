@@ -79,7 +79,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 win32 {
-    VCPKG_ROOT = C:/Users/ikasy/vcpkg
+    VCPKG_ROOT = C:/Users/fedor/vcpkg
 }
 
 win32-g++ {

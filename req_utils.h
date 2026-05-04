@@ -36,6 +36,16 @@ Request MakeLoginRequest(QString login,
     return req;
 }
 
+Request MakeResetConnRequest(QString token) {
+    Request req;
+
+    req.setPath("reset_connection");
+    req.setValueToBody("token", token);
+
+    return req;
+}
+
 }
 
 #endif // REQ_UTILS_H
+
