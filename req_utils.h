@@ -1,3 +1,4 @@
+#pragma once
 #ifndef REQ_UTILS_H
 #define REQ_UTILS_H
 
@@ -10,40 +11,12 @@ Request MakeRegistrationRequest(QString login,
                                 QString name,
                                 QString birthday,
                                 QString registration_date,
-                                QString last_online){
-
-    Request req;
-
-    req.setPath("registrate");
-    req.setValueToBody("login", login);
-    req.setValueToBody("password", password);
-    req.setValueToBody("name", name);
-    req.setValueToBody("birthday", birthday);
-    req.setValueToBody("registration_day", registration_date);
-    req.setValueToBody("last_online", last_online);
-
-    return req;
-}
+                                QString last_online);
 
 Request MakeLoginRequest(QString login,
-                         QString password){
-    Request req;
+                         QString password);
 
-    req.setPath("login");
-    req.setValueToBody("login", login);
-    req.setValueToBody("password", password);
-
-    return req;
-}
-
-Request MakeResetConnRequest(QString token) {
-    Request req;
-
-    req.setPath("reset_connection");
-    req.setValueToBody("token", token);
-
-    return req;
-}
+Request MakeResetConnRequest(QString token);
 
 }
 

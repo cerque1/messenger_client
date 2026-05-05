@@ -33,6 +33,7 @@ SOURCES += \
     mainpage.cpp \
     messagehandler.cpp \
     req_resp_utils.cpp \
+    req_utils.cpp \
     request.cpp \
     response.cpp \
     uploadmanagerworker.cpp \
