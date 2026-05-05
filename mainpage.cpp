@@ -370,6 +370,9 @@ void MainPage::DeleteMessage(int chat_id, int message_id)
 
 void MainPage::UpdateMessageStatus(entities::Status status)
 {
+    if(status.user_id_ == data::GeneralData::GetInstance()->GetUserId() && status.status_ == 2){
+        chats_box_->MarkChatAsRead(status.chat_id_);
+    }
     chat_widgets_->UpdateStatusToMessage(status);
 }
 
