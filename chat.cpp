@@ -29,6 +29,26 @@ Chat::Chat(const entities::Chat& chat, QWidget *parent)
 
     if(chat.has_unread_messages_){
         ui->chat_name->setText(QString::fromUtf8("● %1").arg(another_user));
+        ui->chat_name->setStyleSheet(
+            "color: #60a5fa;"
+            "font-weight: 700;"
+            "font-size: 14px;");
+        ui->last_mess->setStyleSheet(
+            "color: #e2e8f0;"
+            "font-size: 12px;"
+            "font-weight: 600;");
+        this->setStyleSheet(
+            "QWidget#chat {"
+            "    background-color: #1b2433;"
+            "    border: 1px solid #3b82f6;"
+            "    border-radius: 10px;"
+            "    padding: 8px 12px;"
+            "    margin: 4px 0px;"
+            "}"
+            "QWidget#chat:hover {"
+            "    background-color: #212d40;"
+            "    border: 1px solid #60a5fa;"
+            "}");
     } else {
         ui->chat_name->setText(another_user);
     }
