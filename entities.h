@@ -33,6 +33,7 @@ struct Chat{
     QString name_;
     bool has_last_message_ = false;
     Message last_message_;
+    bool has_unread_messages_ = false;
 };
 
 struct ChatInfo{

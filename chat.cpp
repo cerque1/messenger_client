@@ -3,6 +3,19 @@
 #include "generaldata.h"
 
 #include <QMenu>
+#include <QLocale>
+
+namespace {
+QString FormatMessageTime(const QString& iso_time) {
+    QDateTime dt = QDateTime::fromString(iso_time, Qt::ISODate);
+    dt.setTimeSpec(Qt::UTC);
+    dt = dt.toLocalTime();
+    if(!dt.isValid()){
+        return "";
+    }
+    return dt.toString("HH:mm");
+}
+}
 
 Chat::Chat(const entities::Chat& chat, QWidget *parent)
     : QWidget(parent)
@@ -14,15 +27,19 @@ Chat::Chat(const entities::Chat& chat, QWidget *parent)
     QStringList parts = chat.name_.split('#');
     QString another_user = (parts[0] == data::GeneralData::GetInstance()->GetUserName()) ? parts[1] : parts[0];
 
-    ui->chat_name->setText(another_user);
+    if(chat.has_unread_messages_){
+        ui->chat_name->setText(QString::fromUtf8("● %1").arg(another_user));
+    } else {
+        ui->chat_name->setText(another_user);
+    }
 
     QString result;
     if(chat.has_last_message_){
         const auto& last_message = chat.last_message_;
-        if(last_message.sender_id_ != data::GeneralData::GetInstance()->GetUserId() && last_message.status_ == 1){
-            result = QString::fromUtf8("В чате есть новые сообщения");
-        } else {
-            result = last_message.text_;
+        result = last_message.text_;
+        QString time_str = FormatMessageTime(last_message.create_time_);
+        if(!time_str.isEmpty()){
+            result = QString("%1 • %2").arg(result, time_str);
         }
     }
 

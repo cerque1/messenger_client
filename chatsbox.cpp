@@ -50,7 +50,23 @@ void ChatsBox::UpdateChatLastMessage(int chat_id, const entities::Message& messa
 
     chats_[chat_id].has_last_message_ = true;
     chats_[chat_id].last_message_ = message;
+    chats_[chat_id].has_unread_messages_ =
+        message.sender_id_ != data::GeneralData::GetInstance()->GetUserId()
+        && message.status_ == 1;
     UpdateChat(chat_id, message.create_time_);
+}
+
+void ChatsBox::MarkChatAsRead(int chat_id){
+    if(chats_.find(chat_id) == chats_.end()){
+        return;
+    }
+
+    if(!chats_[chat_id].has_unread_messages_){
+        return;
+    }
+
+    chats_[chat_id].has_unread_messages_ = false;
+    UpdateChat(chat_id, chats_[chat_id].last_update_time_);
 }
 
 void ChatsBox::updateActionSlot(){

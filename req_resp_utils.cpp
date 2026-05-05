@@ -71,6 +71,9 @@ QList<entities::Chat> MakeChatFromResponse(const Response& resp){
                                                      last_message_json["create_time"].toString(),
                                                      last_message_json["status"].toInt(),
                                                      last_message_json["is_changed"].toBool());
+            chat_r.has_unread_messages_ =
+                chat_r.last_message_.sender_id_ != data::GeneralData::GetInstance()->GetUserId()
+                && chat_r.last_message_.status_ == 1;
         }
 
         chats.push_back(chat_r);

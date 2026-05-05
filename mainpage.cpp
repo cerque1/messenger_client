@@ -240,6 +240,8 @@ void MainPage::ClickToChat(Chat* chat_button)
     if(chat_button->objectName().toInt() == current_chat_)
         return;
 
+    chats_box_->MarkChatAsRead(chat_button->objectName().toInt());
+
     if(chat_details_[current_chat_] && chat_details_[current_chat_]->isVisible())
         chat_details_[current_chat_]->hide();
 
