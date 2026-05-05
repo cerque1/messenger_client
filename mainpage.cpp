@@ -141,6 +141,7 @@ void MainPage::Prepare()
     chat_widgets_ = new ChatWidget(-1, upload_manager_worker_, this);
     connect(chat_widgets_, SIGNAL(ChatDetailsClick(int,QString)), this, SLOT(ChatDelatilsClicked(int,QString)));
     connect(chat_widgets_, SIGNAL(NeedUpdateTime(int,QDateTime)), this, SLOT(UpdateChatTime(int,QDateTime)));
+    connect(chat_widgets_, SIGNAL(NeedUpdateLastMessage(entities::Message)), this, SLOT(UpdateChatLastMessage(entities::Message)));
     chat_widgets_->hide();
 
     grid_layout->addWidget(left_panel, 0, 0, 1, 1);
@@ -316,6 +317,10 @@ void MainPage::ChatDelatilsClicked(int chat_id, QString chat_name)
 
 void MainPage::UpdateChatTime(int chat_id, QDateTime time){
     chats_box_->UpdateChat(chat_id, time.toString("yyyy-MM-ddTHH:mm:ss.zzz"));
+}
+
+void MainPage::UpdateChatLastMessage(entities::Message message){
+    chats_box_->UpdateChatLastMessage(message.chat_id_, message);
 }
 
 void MainPage::BackDetailsClick()
