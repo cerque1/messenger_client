@@ -602,6 +602,9 @@ QList<MessageWidget*> MessagesWidget::addMessages(const QList<entities::Message>
 }
 
 MessageWidget* MessagesWidget::addMessage(const entities::Message& message){
+    if(messages_.find(message.id_) != messages_.end()){
+        return messages_[message.id_];
+    }
     if(message.id_ <= last_id_){
         return nullptr;
     }
@@ -692,6 +695,9 @@ void MessagesWidget::changeMessageInfo(int pre_id, int id, QString time, int sta
     pre_messages_.remove(pre_id);
     widget->setId(id);
     messages_[id] = widget;
+    if(id > last_id_){
+        last_id_ = id;
+    }
 }
 
 void MessagesWidget::updateMessageStatus(const entities::Status& status){
