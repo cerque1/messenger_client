@@ -354,7 +354,7 @@ void MainPage::AddChatMember(entities::UserInfoInChat chat_member)
 
 void MainPage::NewMessage(entities::Message message)
 {
-    chats_box_->UpdateChat(message.chat_id_, message.create_time_);
+    chats_box_->UpdateChatLastMessage(message.chat_id_, message);
     chat_widgets_->AddMessageToChat(message);
 }
 

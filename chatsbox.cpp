@@ -43,6 +43,16 @@ void ChatsBox::UpdateChat(int chat_id, QString last_update_time){
     chat_widgets_[chat_id] = new_chat_w;
 }
 
+void ChatsBox::UpdateChatLastMessage(int chat_id, const entities::Message& message){
+    if(chats_.find(chat_id) == chats_.end()){
+        return;
+    }
+
+    chats_[chat_id].has_last_message_ = true;
+    chats_[chat_id].last_message_ = message;
+    UpdateChat(chat_id, message.create_time_);
+}
+
 void ChatsBox::updateActionSlot(){
     qDebug() << "update message click";
 }

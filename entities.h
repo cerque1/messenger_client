@@ -6,28 +6,6 @@
 
 namespace entities {
 
-struct Chat{
-    Chat() = default;
-    Chat(int id, QString create_time, QString last_update_time, bool is_dialog, QString name)
-        : id_(id), create_time_(create_time), last_update_time_(last_update_time), is_dialog_(is_dialog), name_(name){}
-
-    int id_;
-    QString create_time_;
-    QString last_update_time_;
-    bool is_dialog_;
-    QString name_;
-};
-
-struct ChatInfo{
-    ChatInfo() = default;
-    ChatInfo(int chat_id, QString name, QString time)
-        : chat_id_(chat_id), name_(name), time_(time){}
-
-    int chat_id_;
-    QString name_;
-    QString time_;
-};
-
 struct Message{
     Message() = default;
     Message(int id, int chat_id, int sender_id, QString text, QString create_time, int status, bool is_changed, QList<QString> files = {})
@@ -41,6 +19,30 @@ struct Message{
     int status_;
     bool is_changed_;
     QList<QString> files_;
+};
+
+struct Chat{
+    Chat() = default;
+    Chat(int id, QString create_time, QString last_update_time, bool is_dialog, QString name)
+        : id_(id), create_time_(create_time), last_update_time_(last_update_time), is_dialog_(is_dialog), name_(name){}
+
+    int id_;
+    QString create_time_;
+    QString last_update_time_;
+    bool is_dialog_;
+    QString name_;
+    bool has_last_message_ = false;
+    Message last_message_;
+};
+
+struct ChatInfo{
+    ChatInfo() = default;
+    ChatInfo(int chat_id, QString name, QString time)
+        : chat_id_(chat_id), name_(name), time_(time){}
+
+    int chat_id_;
+    QString name_;
+    QString time_;
 };
 
 

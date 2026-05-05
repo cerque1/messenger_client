@@ -16,50 +16,13 @@ Chat::Chat(const entities::Chat& chat, QWidget *parent)
 
     ui->chat_name->setText(another_user);
 
-    QDateTime dt = QDateTime::fromString(
-        chat.last_update_time_,
-        Qt::ISODate
-        );
-    dt.setTimeZone(QTimeZone::UTC);
-    dt = dt.toLocalTime();
     QString result;
-
-
-    if (dt.isValid())
-    {
-        QDateTime now = QDateTime::currentDateTime();
-        QDate today = now.date();
-        QDate msgDate = dt.date();
-
-        if (msgDate == today)
-        {
-            result = dt.toString("HH:mm");
-        }
-        else
-        {
-            int daysFromMonday = today.dayOfWeek() - 1;
-            QDate startOfWeek = today.addDays(-daysFromMonday);
-
-            if (msgDate >= startOfWeek)
-            {
-                QString weekday =
-                    QLocale().standaloneDayName(
-                        msgDate.dayOfWeek(),
-                        QLocale::ShortFormat
-                        );
-
-                result = QString("%1 %2")
-                             .arg(weekday)
-                             .arg(dt.toString("HH:mm"));
-            }
-            else if (msgDate.year() == today.year())
-            {
-                result = dt.toString("dd.MM HH:mm");
-            }
-            else
-            {
-                result = dt.toString("dd.MM.yy");
-            }
+    if(chat.has_last_message_){
+        const auto& last_message = chat.last_message_;
+        if(last_message.sender_id_ != data::GeneralData::GetInstance()->GetUserId() && last_message.status_ == 1){
+            result = QString::fromUtf8("В чате есть новые сообщения");
+        } else {
+            result = last_message.text_;
         }
     }
 
