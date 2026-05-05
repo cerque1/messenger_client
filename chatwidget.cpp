@@ -701,11 +701,19 @@ void MessagesWidget::changeMessageInfo(int pre_id, int id, QString time, int sta
 }
 
 void MessagesWidget::updateMessageStatus(const entities::Status& status){
-    for(auto i = messages_.find(status.message_id_); i != messages_.begin(); --i){
+    auto message_it = messages_.find(status.message_id_);
+    if(message_it == messages_.end()){
+        return;
+    }
+
+    for(auto i = message_it;; --i){
         if((*i)->getCurrentStatus() == 2){
             break;
         }
         (*i)->setStatus(status.status_);
+        if(i == messages_.begin()){
+            break;
+        }
     }
 }
 

@@ -274,7 +274,7 @@ void MainPage::ClickToChat(Chat* chat_button)
         chat_button->objectName().toInt(),
         req_resp_utils::MakeChatMembersFromResponse(chats_members_resp));
 
-    QStringList parts = chat_button->GetName().split('#');
+    QStringList parts = chats_box_->getChatById(chat_button->objectName().toInt()).name_.split('#');
     QString another_user =
         (parts[0] == data::GeneralData::GetInstance()->GetUserName())
             ? parts[1]
@@ -342,7 +342,7 @@ void MainPage::AddChatMember(entities::UserInfoInChat chat_member)
     if(!chat_members)
         return;
 
-    chat_members->users_[chat_member.chat_id_] = chat_member;
+    chat_members->users_[chat_member.id_] = chat_member;
 
     if(chat_details_.find(chat_member.chat_id_) == chat_details_.end()
         || chat_details_[chat_member.chat_id_] == nullptr)
