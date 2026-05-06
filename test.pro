@@ -131,3 +131,12 @@ unix {
         LIBS += -ldatachannel
     }
 }
+
+
+unix {
+    LIBS += -lcrypto
+}
+
+win32 {
+    LIBS += -llibcrypto
+}
