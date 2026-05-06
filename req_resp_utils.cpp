@@ -55,11 +55,28 @@ QList<entities::Chat> MakeChatFromResponse(const Response& resp){
     QJsonArray chats_json = resp.getValueFromBody("chats").toJsonArray();
     for(auto chat : chats_json){
         QJsonObject chat_json = chat.toObject();
-        chats.push_back(entities::Chat(chat_json["id"].toInt(),
-                                       chat_json["create_time"].toString(),
-                                       chat_json["last_update_time"].toString(),
-                                       chat_json["is_dialog"].toBool(),
-                                       chat_json["name"].toString()));
+        entities::Chat chat_r(chat_json["id"].toInt(),
+                              chat_json["create_time"].toString(),
+                              chat_json["last_update_time"].toString(),
+                              chat_json["is_dialog"].toBool(),
+                              chat_json["name"].toString());
+
+        if(chat_json.contains("last_message") && chat_json["last_message"].isObject()){
+            QJsonObject last_message_json = chat_json["last_message"].toObject();
+            chat_r.has_last_message_ = true;
+            chat_r.last_message_ = entities::Message(last_message_json["id"].toInt(),
+                                                     chat_r.id_,
+                                                     last_message_json["sender_id"].toInt(),
+                                                     last_message_json["text"].toString(),
+                                                     last_message_json["create_time"].toString(),
+                                                     last_message_json["status"].toInt(),
+                                                     last_message_json["is_changed"].toBool());
+            chat_r.has_unread_messages_ =
+                chat_r.last_message_.sender_id_ != data::GeneralData::GetInstance()->GetUserId()
+                && chat_r.last_message_.status_ == 1;
+        }
+
+        chats.push_back(chat_r);
     }
     return chats;
 }
@@ -256,4 +273,3 @@ entities::Status MakeStatusFromMessage(const Request& req){
 }
 
 }
-

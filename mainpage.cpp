@@ -141,6 +141,7 @@ void MainPage::Prepare()
     chat_widgets_ = new ChatWidget(-1, upload_manager_worker_, this);
     connect(chat_widgets_, SIGNAL(ChatDetailsClick(int,QString)), this, SLOT(ChatDelatilsClicked(int,QString)));
     connect(chat_widgets_, SIGNAL(NeedUpdateTime(int,QDateTime)), this, SLOT(UpdateChatTime(int,QDateTime)));
+    connect(chat_widgets_, SIGNAL(NeedUpdateLastMessage(entities::Message)), this, SLOT(UpdateChatLastMessage(entities::Message)));
     chat_widgets_->hide();
 
     grid_layout->addWidget(left_panel, 0, 0, 1, 1);
@@ -272,7 +273,7 @@ void MainPage::ClickToChat(Chat* chat_button)
         chat_button->objectName().toInt(),
         req_resp_utils::MakeChatMembersFromResponse(chats_members_resp));
 
-    QStringList parts = chat_button->GetName().split('#');
+    QStringList parts = chats_box_->getChatById(chat_button->objectName().toInt()).name_.split('#');
     QString another_user =
         (parts[0] == data::GeneralData::GetInstance()->GetUserName())
             ? parts[1]
@@ -316,6 +317,10 @@ void MainPage::UpdateChatTime(int chat_id, QDateTime time){
     chats_box_->UpdateChat(chat_id, time.toString("yyyy-MM-ddTHH:mm:ss.zzz"));
 }
 
+void MainPage::UpdateChatLastMessage(entities::Message message){
+    chats_box_->UpdateChatLastMessage(message.chat_id_, message);
+}
+
 void MainPage::BackDetailsClick()
 {
     chat_details_[current_chat_]->hide();
@@ -340,7 +345,7 @@ void MainPage::AddChatMember(entities::UserInfoInChat chat_member)
     if(!chat_members)
         return;
 
-    chat_members->users_[chat_member.chat_id_] = chat_member;
+    chat_members->users_[chat_member.id_] = chat_member;
 
     if(chat_details_.find(chat_member.chat_id_) == chat_details_.end()
         || chat_details_[chat_member.chat_id_] == nullptr)
@@ -354,7 +359,7 @@ void MainPage::AddChatMember(entities::UserInfoInChat chat_member)
 
 void MainPage::NewMessage(entities::Message message)
 {
-    chats_box_->UpdateChat(message.chat_id_, message.create_time_);
+    chats_box_->UpdateChatLastMessage(message.chat_id_, message);
     chat_widgets_->AddMessageToChat(message);
 }
 
@@ -365,6 +370,9 @@ void MainPage::DeleteMessage(int chat_id, int message_id)
 
 void MainPage::UpdateMessageStatus(entities::Status status)
 {
+    if(status.user_id_ == data::GeneralData::GetInstance()->GetUserId() && status.status_ == 2){
+        chats_box_->MarkChatAsRead(status.chat_id_);
+    }
     chat_widgets_->UpdateStatusToMessage(status);
 }
 

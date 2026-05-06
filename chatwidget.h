@@ -286,6 +286,7 @@ public:
 signals:
     void ChatDetailsClick(int chat_id, QString chat_name);
     void NeedUpdateTime(int chat_id, QDateTime time);
+    void NeedUpdateLastMessage(entities::Message message);
 
 public slots:
     void ClickToSendMessage();

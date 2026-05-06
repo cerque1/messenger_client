@@ -18,6 +18,8 @@ public:
 
     void AddOrUpdateChat(const entities::Chat& chat);
     void UpdateChat(int chat_id, QString last_update_time);
+    void UpdateChatLastMessage(int chat_id, const entities::Message& message);
+    void MarkChatAsRead(int chat_id);
     void DeleteChat(int chat_id);
 
     entities::Chat getChatById(int chat_id){
