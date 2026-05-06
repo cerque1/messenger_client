@@ -3,6 +3,7 @@
 #include "client.h"
 #include "generaldata.h"
 #include "messagehandler.h"
+#include "tokenstore.h"
 
 #include <QApplication>
 #include <QPushButton>
@@ -23,6 +24,7 @@ int main(int argc, char *argv[])
     processor_thread->start();
 
     data::GeneralData::GetInstance()->SetClient(client);
+    data::GeneralData::GetInstance()->SetToken(token_store::LoadToken());
     MessageHandler* handler = new MessageHandler(&*data::GeneralData::GetInstance()->GetClient());
     MainPage page(handler, "ws://localhost:1234");
     std::unique_ptr<MainWindow> log_reg_window;
@@ -35,6 +37,15 @@ int main(int argc, char *argv[])
 
     QObject::connect(thread, SIGNAL(finished()), handler, SLOT(deleteLater()));
     QObject::connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
+
+    QObject::connect(&a, &QCoreApplication::aboutToQuit, []() {
+        const QString token = data::GeneralData::GetInstance()->GetToken();
+        if (token.isEmpty()) {
+            token_store::RemoveToken();
+        } else {
+            token_store::SaveToken(token);
+        }
+    });
 
     if(data::GeneralData::GetInstance()->GetToken().isEmpty()){
         log_reg_window = std::make_unique<MainWindow>(&page);

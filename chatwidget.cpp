@@ -43,6 +43,18 @@
 #include <cstring>
 
 namespace {
+QString MessageStatusSymbol(int status) {
+    switch (status) {
+    case 2:
+        return QString::fromUtf8("✓✓");
+    case 1:
+        return QString::fromUtf8("✓");
+    case 0:
+    default:
+        return QString::fromUtf8("🕓");
+    }
+}
+
 QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
     QAudioFormat requestedFormat;
     requestedFormat.setSampleRate(16000);
@@ -352,7 +364,7 @@ OwnMessage::OwnMessage(const entities::Message& message, bool isNew, QWidget* pa
     message_block->setObjectName("message_block");
     message_block->setMaximumWidth(400);
 
-    QLabel* status_label = new QLabel(QString::number(message.status_));
+    QLabel* status_label = new QLabel(MessageStatusSymbol(message.status_));
     status_label->setObjectName("status_label");
     status_label->setWordWrap(true);
 
@@ -374,7 +386,7 @@ OwnMessage::OwnMessage(const entities::Message& message, bool isNew, QWidget* pa
 
 void OwnMessage::setStatus(int status){
     QLabel* label = findChild<QLabel*>("status_label");
-    label->setText(QString::number(status));
+    label->setText(MessageStatusSymbol(status));
 }
 
 void OwnMessage::showContextMenuSlot(const QPoint &pos){

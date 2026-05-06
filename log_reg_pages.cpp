@@ -6,6 +6,7 @@
 #include "req_utils.h"
 #include "generaldata.h"
 #include "req_resp_utils.h"
+#include "tokenstore.h"
 
 #include <QMessageBox>
 #include <QStackedWidget>
@@ -66,6 +67,7 @@ void MainWindow::onLoginClicked(){
     qDebug() << resp.getValueFromBody("token").toString();
     data::GeneralData* data_ = data::GeneralData::GetInstance();
     data_->SetToken(resp.getValueFromBody("token").toString());
+    token_store::SaveToken(data_->GetToken());
     data_->SetUserId(resp.getValueFromBody("user_id").toInt());
     data_->SetUserName(resp.getValueFromBody("user_name").toString());
     OpenMainPage();
@@ -102,6 +104,7 @@ void MainWindow::onRegisterClicked(){
         return;
     }
     data::GeneralData::GetInstance()->SetToken(resp.getValueFromBody("token").toString());
+    token_store::SaveToken(data::GeneralData::GetInstance()->GetToken());
     data::GeneralData::GetInstance()->SetUserId(resp.getValueFromBody("user_id").toInt());
     data::GeneralData::GetInstance()->SetUserName(resp.getValueFromBody("user_name").toString());
     OpenMainPage();

@@ -37,6 +37,7 @@ SOURCES += \
     request.cpp \
     response.cpp \
     uploadmanagerworker.cpp \
+    tokenstore.cpp \
     utils.cpp
 
 HEADERS += \
@@ -64,6 +65,7 @@ HEADERS += \
     request.h \
     response.h \
     uploadmanagerworker.h \
+    tokenstore.h \
     utils.h
 
 FORMS += \
