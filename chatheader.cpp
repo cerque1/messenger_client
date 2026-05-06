@@ -3,7 +3,7 @@
 
 #include <QPushButton>
 
-ChatHeader::ChatHeader(int chat_id, QString chat_name, QString last_time, QWidget *parent)
+ChatHeader::ChatHeader(int chat_id, QString chat_name, QString last_time, bool is_dialog, QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::ChatHeader)
     , chat_id_(chat_id)
@@ -13,6 +13,7 @@ ChatHeader::ChatHeader(int chat_id, QString chat_name, QString last_time, QWidge
     ui->name->setText(chat_name);
     ui->time->setText(last_time);
 
+    ui->start_call_button->setVisible(is_dialog);
     connect(ui->start_call_button, &QPushButton::clicked, this, &ChatHeader::startCallSlot);
 }
 

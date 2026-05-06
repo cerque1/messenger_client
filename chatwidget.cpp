@@ -2139,7 +2139,7 @@ void ChatWidget::HideChat(){
 }
 
 WidgetsToChat ChatWidget::CreateChatWidgets(entities::ChatInfo info, bool is_dialog){
-    ChatHeader* profile = new ChatHeader(info.chat_id_, info.name_, info.time_, this);
+    ChatHeader* profile = new ChatHeader(info.chat_id_, info.name_, info.time_, is_dialog, this);
     connect(profile, SIGNAL(clicked(int,QString)), this, SIGNAL(ChatDetailsClick(int,QString)));
     connect(profile, SIGNAL(startCallClicked(int,QString)), this, SLOT(StartCall(int,QString)));
     MessagesWidget* messages = new MessagesWidget(info.chat_id_, is_dialog, this);
