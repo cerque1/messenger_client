@@ -43,6 +43,43 @@
 #include <cstring>
 
 namespace {
+QString kCallDialogStyle =
+    "QDialog {"
+    "  background-color: #0b0c0e;"
+    "  color: #e6e6e6;"
+    "  font-family: 'Segoe UI', 'Inter', sans-serif;"
+    "}"
+    "QLabel { color: #e6e6e6; }"
+    "QPushButton {"
+    "  background-color: #2563eb;"
+    "  border: 1px solid #2563eb;"
+    "  border-radius: 10px;"
+    "  color: white;"
+    "  font-weight: 600;"
+    "  padding: 7px 14px;"
+    "}"
+    "QPushButton:hover { background-color: #3b82f6; border: 1px solid #3b82f6; }"
+    "QPushButton:pressed { background-color: #1d4ed8; border: 1px solid #1d4ed8; }"
+    "QComboBox {"
+    "  background-color: #15171a;"
+    "  border: 1px solid #23262b;"
+    "  border-radius: 8px;"
+    "  color: #e6e6e6;"
+    "  padding: 6px 10px;"
+    "}";
+
+QString MessageStatusSymbol(int status) {
+    switch (status) {
+    case 2:
+        return QString::fromUtf8("✓✓");
+    case 1:
+        return QString::fromUtf8("✓");
+    case 0:
+    default:
+        return QString::fromUtf8("🕓");
+    }
+}
+
 QAudioFormat BuildVoiceAudioFormat(const QAudioDevice& device) {
     QAudioFormat requestedFormat;
     requestedFormat.setSampleRate(16000);
@@ -352,7 +389,7 @@ OwnMessage::OwnMessage(const entities::Message& message, bool isNew, QWidget* pa
     message_block->setObjectName("message_block");
     message_block->setMaximumWidth(400);
 
-    QLabel* status_label = new QLabel(QString::number(message.status_));
+    QLabel* status_label = new QLabel(MessageStatusSymbol(message.status_));
     status_label->setObjectName("status_label");
     status_label->setWordWrap(true);
 
@@ -374,7 +411,7 @@ OwnMessage::OwnMessage(const entities::Message& message, bool isNew, QWidget* pa
 
 void OwnMessage::setStatus(int status){
     QLabel* label = findChild<QLabel*>("status_label");
-    label->setText(QString::number(status));
+    label->setText(MessageStatusSymbol(status));
 }
 
 void OwnMessage::showContextMenuSlot(const QPoint &pos){
@@ -443,9 +480,12 @@ InterlocutorMessage::InterlocutorMessage(const entities::Message& message, bool 
         username->setStyleSheet("color: #60a5fa; font-size: 11px; font-weight: 500;");
         username->setAlignment(Qt::AlignLeft);
 
-        auto users = data::GeneralData::GetInstance()->getMembersToChat(message.chat_id_)->users_;
-        if(users.find(message.sender_id_) != users.end()){
-            username->setText(users[message.sender_id_].name_);
+        auto* chat_members = data::GeneralData::GetInstance()->getMembersToChat(message.chat_id_);
+        if(chat_members){
+            auto users = chat_members->users_;
+            if(users.find(message.sender_id_) != users.end()){
+                username->setText(users[message.sender_id_].name_);
+            }
         }
 
         v->addWidget(username);
@@ -1508,8 +1548,13 @@ void ChatWidget::StartCall(int chat_id, QString chat_name) {
     outgoing_call_dialog_ = new QDialog(nullptr);
     outgoing_call_dialog_->setWindowTitle(QString("Звонок: %1").arg(chat_name));
     outgoing_call_dialog_->setWindowModality(Qt::ApplicationModal);
+    outgoing_call_dialog_->setStyleSheet(kCallDialogStyle);
+    outgoing_call_dialog_->setMinimumWidth(360);
     QVBoxLayout* layout = new QVBoxLayout(outgoing_call_dialog_);
-    layout->addWidget(new QLabel("Ожидание подключения собеседника..."));
+    QLabel* waitingLabel = new QLabel("Ожидание подключения собеседника...");
+    waitingLabel->setStyleSheet("font-size: 15px; font-weight: 600;");
+    waitingLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(waitingLabel);
     QPushButton* cancel = new QPushButton("Отменить", outgoing_call_dialog_);
     layout->addWidget(cancel);
     connect(cancel, &QPushButton::clicked, this, [this, chat_id]() {
@@ -1550,12 +1595,18 @@ void ChatWidget::OnIncomingCall(int chat_id, int caller_id, QString caller_name,
     incoming_call_dialog_ = new QDialog(nullptr);
     incoming_call_dialog_->setWindowTitle("Входящий звонок");
     incoming_call_dialog_->setWindowModality(Qt::ApplicationModal);
+    incoming_call_dialog_->setStyleSheet(kCallDialogStyle);
+    incoming_call_dialog_->setMinimumWidth(380);
     QVBoxLayout* layout = new QVBoxLayout(incoming_call_dialog_);
-    layout->addWidget(new QLabel(QString("Входящий звонок от %1").arg(caller_name)));
+    QLabel* callerLabel = new QLabel(QString("Входящий звонок от %1").arg(caller_name));
+    callerLabel->setStyleSheet("font-size: 15px; font-weight: 600;");
+    callerLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(callerLabel);
 
     QDialogButtonBox* box = new QDialogButtonBox(QDialogButtonBox::Yes | QDialogButtonBox::No, incoming_call_dialog_);
     box->button(QDialogButtonBox::Yes)->setText("Принять");
     box->button(QDialogButtonBox::No)->setText("Отклонить");
+    box->button(QDialogButtonBox::No)->setStyleSheet("background-color: #dc2626; border: 1px solid #dc2626;");
     layout->addWidget(box);
 
     connect(box, &QDialogButtonBox::accepted, this, [this, caller_name]() {
@@ -1703,6 +1754,7 @@ void ChatWidget::OpenActiveCallWindow(const QString& titleText) {
     active_call_dialog_->setAttribute(Qt::WA_DeleteOnClose, false);
     active_call_dialog_->setWindowTitle(titleText);
     active_call_dialog_->resize(900, 600);
+    active_call_dialog_->setStyleSheet(kCallDialogStyle);
 
     QVBoxLayout* root = new QVBoxLayout(active_call_dialog_);
     QLabel* callTitle = new QLabel(titleText, active_call_dialog_);
@@ -2124,7 +2176,7 @@ void ChatWidget::HideChat(){
 }
 
 WidgetsToChat ChatWidget::CreateChatWidgets(entities::ChatInfo info, bool is_dialog){
-    ChatHeader* profile = new ChatHeader(info.chat_id_, info.name_, info.time_, this);
+    ChatHeader* profile = new ChatHeader(info.chat_id_, info.name_, info.time_, is_dialog, this);
     connect(profile, SIGNAL(clicked(int,QString)), this, SIGNAL(ChatDetailsClick(int,QString)));
     connect(profile, SIGNAL(startCallClicked(int,QString)), this, SLOT(StartCall(int,QString)));
     MessagesWidget* messages = new MessagesWidget(info.chat_id_, is_dialog, this);

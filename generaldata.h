@@ -103,7 +103,7 @@ private:
     static std::unique_ptr<GeneralData> instance;
 
     QString token_;
-    int current_user_id_;
+    int current_user_id_ = 0;
     QString user_name_;
     QDateTime last_update_time_ = QDateTime::fromString("2025-01-01 00:00:00", "yyyy-MM-dd hh:mm:ss");
     std::unordered_map<int, QDateTime> chats_to_last_update_message_time_;

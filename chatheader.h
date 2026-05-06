@@ -13,7 +13,7 @@ class ChatHeader : public QWidget
     Q_OBJECT
 
 public:
-    explicit ChatHeader(int chat_id, QString chat_name, QString last_time, QWidget *parent = nullptr);
+    explicit ChatHeader(int chat_id, QString chat_name, QString last_time, bool is_dialog, QWidget *parent = nullptr);
     ~ChatHeader();
 
     void SetChatName(QString name);

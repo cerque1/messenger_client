@@ -6,6 +6,7 @@
 #include "req_utils.h"
 #include "generaldata.h"
 #include "req_resp_utils.h"
+#include "tokenstore.h"
 
 #include <QMessageBox>
 #include <QStackedWidget>
@@ -68,6 +69,12 @@ void MainWindow::onLoginClicked(){
     data_->SetToken(resp.getValueFromBody("token").toString());
     data_->SetUserId(resp.getValueFromBody("user_id").toInt());
     data_->SetUserName(resp.getValueFromBody("user_name").toString());
+
+    token_store::SessionData session;
+    session.token = data_->GetToken();
+    session.user_id = data_->GetUserId();
+    session.user_name = data_->GetUserName();
+    token_store::SaveSession(session);
     OpenMainPage();
 }
 
@@ -104,6 +111,12 @@ void MainWindow::onRegisterClicked(){
     data::GeneralData::GetInstance()->SetToken(resp.getValueFromBody("token").toString());
     data::GeneralData::GetInstance()->SetUserId(resp.getValueFromBody("user_id").toInt());
     data::GeneralData::GetInstance()->SetUserName(resp.getValueFromBody("user_name").toString());
+
+    token_store::SessionData session;
+    session.token = data::GeneralData::GetInstance()->GetToken();
+    session.user_id = data::GeneralData::GetInstance()->GetUserId();
+    session.user_name = data::GeneralData::GetInstance()->GetUserName();
+    token_store::SaveSession(session);
     OpenMainPage();
 }
 
@@ -115,7 +128,7 @@ void MainWindow::OpenMainPage(){
     ui->nickname->setText("");
 
     main_window_->show();
-    this->close();
+    this->hide();
 }
 
 

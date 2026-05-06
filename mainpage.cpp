@@ -5,6 +5,7 @@
 #include "createchat.h"
 #include "utils.h"
 #include "chatsbox.h"
+#include "tokenstore.h"
 
 #include <QGridLayout>
 #include <QVBoxLayout>
@@ -154,6 +155,7 @@ void MainPage::Prepare()
 void MainPage::OnLogout()
 {
     data::GeneralData::GetInstance()->Clear();
+    token_store::RemoveToken();
 
     this->hide();
 
@@ -217,6 +219,17 @@ void MainPage::FillChats()
         data::GeneralData::GetInstance()->GetLastUpdateTime().toUTC());
 
     Response resp = req_resp_utils::SendReqAndWaitResp(req);
+
+    if(resp.getStatus() == 401){
+        data::GeneralData::GetInstance()->Clear();
+        token_store::RemoveToken();
+        this->hide();
+        ResetState();
+        if(login_widget_){
+            login_widget_->show();
+        }
+        return;
+    }
 
     if(resp.getStatus() != 200){
         utils::MakeMessageBox(resp.getValueFromBody("message").toString());
