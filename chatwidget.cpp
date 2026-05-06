@@ -455,9 +455,12 @@ InterlocutorMessage::InterlocutorMessage(const entities::Message& message, bool 
         username->setStyleSheet("color: #60a5fa; font-size: 11px; font-weight: 500;");
         username->setAlignment(Qt::AlignLeft);
 
-        auto users = data::GeneralData::GetInstance()->getMembersToChat(message.chat_id_)->users_;
-        if(users.find(message.sender_id_) != users.end()){
-            username->setText(users[message.sender_id_].name_);
+        auto* chat_members = data::GeneralData::GetInstance()->getMembersToChat(message.chat_id_);
+        if(chat_members){
+            auto users = chat_members->users_;
+            if(users.find(message.sender_id_) != users.end()){
+                username->setText(users[message.sender_id_].name_);
+            }
         }
 
         v->addWidget(username);

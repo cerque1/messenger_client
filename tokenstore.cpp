@@ -10,6 +10,9 @@
 
 #include <openssl/evp.h>
 
+#include <QJsonDocument>
+#include <QJsonObject>
+
 namespace {
 constexpr int kSaltSize = 16;
 constexpr int kIvSize = 12;
@@ -156,7 +159,7 @@ QByteArray DecryptAesGcm(const QByteArray& cipher, const QByteArray& key, const 
 
 namespace token_store {
 
-bool SaveToken(const QString& token) {
+bool SaveSession(const SessionData& session) {
     const QByteArray salt = RandomBytes(kSaltSize);
     const QByteArray iv = RandomBytes(kIvSize);
 
@@ -165,9 +168,14 @@ bool SaveToken(const QString& token) {
         return false;
     }
 
+    QJsonObject obj;
+    obj["token"] = session.token;
+    obj["user_id"] = session.user_id;
+    obj["user_name"] = session.user_name;
+
     QByteArray tag;
-    const QByteArray cipher = EncryptAesGcm(token.toUtf8(), key, iv, &tag);
-    if (cipher.isEmpty() && !token.isEmpty()) {
+    const QByteArray cipher = EncryptAesGcm(QJsonDocument(obj).toJson(QJsonDocument::Compact), key, iv, &tag);
+    if (cipher.isEmpty() && !session.token.isEmpty()) {
         return false;
     }
 
@@ -189,21 +197,23 @@ bool SaveToken(const QString& token) {
     return true;
 }
 
-QString LoadToken() {
+SessionData LoadSession() {
+    SessionData session;
+
     QFile file(TokenFilePath());
     if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
-        return "";
+        return session;
     }
 
     const QByteArray encoded = file.readAll().trimmed();
     file.close();
     if (encoded.isEmpty()) {
-        return "";
+        return session;
     }
 
     const QByteArray payload = QByteArray::fromBase64(encoded);
     if (!payload.startsWith("A1::") || payload.size() < 4 + kSaltSize + kIvSize + kTagSize) {
-        return "";
+        return session;
     }
 
     const int offset = 4;
@@ -214,11 +224,36 @@ QString LoadToken() {
 
     QByteArray key;
     if (!DeriveKey(salt, &key)) {
-        return "";
+        return session;
     }
 
     const QByteArray plain = DecryptAesGcm(cipher, key, iv, tag);
-    return QString::fromUtf8(plain);
+    if (plain.isEmpty()) {
+        return session;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(plain);
+    if (!doc.isObject()) {
+        return session;
+    }
+
+    const QJsonObject obj = doc.object();
+    session.token = obj.value("token").toString();
+    session.user_id = obj.value("user_id").toInt();
+    session.user_name = obj.value("user_name").toString();
+    session.is_valid = !session.token.isEmpty();
+    return session;
+}
+
+bool SaveToken(const QString& token) {
+    SessionData session;
+    session.token = token;
+    session.is_valid = !token.isEmpty();
+    return SaveSession(session);
+}
+
+QString LoadToken() {
+    return LoadSession().token;
 }
 
 void RemoveToken() {

@@ -24,7 +24,10 @@ int main(int argc, char *argv[])
     processor_thread->start();
 
     data::GeneralData::GetInstance()->SetClient(client);
-    data::GeneralData::GetInstance()->SetToken(token_store::LoadToken());
+    const token_store::SessionData saved_session = token_store::LoadSession();
+    data::GeneralData::GetInstance()->SetToken(saved_session.token);
+    data::GeneralData::GetInstance()->SetUserId(saved_session.user_id);
+    data::GeneralData::GetInstance()->SetUserName(saved_session.user_name);
     MessageHandler* handler = new MessageHandler(&*data::GeneralData::GetInstance()->GetClient());
     MainPage page(handler, "ws://localhost:1234");
     std::unique_ptr<MainWindow> log_reg_window;
@@ -39,11 +42,15 @@ int main(int argc, char *argv[])
     QObject::connect(thread, SIGNAL(finished()), thread, SLOT(deleteLater()));
 
     QObject::connect(&a, &QCoreApplication::aboutToQuit, []() {
-        const QString token = data::GeneralData::GetInstance()->GetToken();
-        if (token.isEmpty()) {
+        token_store::SessionData session;
+        session.token = data::GeneralData::GetInstance()->GetToken();
+        session.user_id = data::GeneralData::GetInstance()->GetUserId();
+        session.user_name = data::GeneralData::GetInstance()->GetUserName();
+
+        if (session.token.isEmpty()) {
             token_store::RemoveToken();
         } else {
-            token_store::SaveToken(token);
+            token_store::SaveSession(session);
         }
     });
 

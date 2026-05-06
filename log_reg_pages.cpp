@@ -67,9 +67,14 @@ void MainWindow::onLoginClicked(){
     qDebug() << resp.getValueFromBody("token").toString();
     data::GeneralData* data_ = data::GeneralData::GetInstance();
     data_->SetToken(resp.getValueFromBody("token").toString());
-    token_store::SaveToken(data_->GetToken());
     data_->SetUserId(resp.getValueFromBody("user_id").toInt());
     data_->SetUserName(resp.getValueFromBody("user_name").toString());
+
+    token_store::SessionData session;
+    session.token = data_->GetToken();
+    session.user_id = data_->GetUserId();
+    session.user_name = data_->GetUserName();
+    token_store::SaveSession(session);
     OpenMainPage();
 }
 
@@ -104,9 +109,14 @@ void MainWindow::onRegisterClicked(){
         return;
     }
     data::GeneralData::GetInstance()->SetToken(resp.getValueFromBody("token").toString());
-    token_store::SaveToken(data::GeneralData::GetInstance()->GetToken());
     data::GeneralData::GetInstance()->SetUserId(resp.getValueFromBody("user_id").toInt());
     data::GeneralData::GetInstance()->SetUserName(resp.getValueFromBody("user_name").toString());
+
+    token_store::SessionData session;
+    session.token = data::GeneralData::GetInstance()->GetToken();
+    session.user_id = data::GeneralData::GetInstance()->GetUserId();
+    session.user_name = data::GeneralData::GetInstance()->GetUserName();
+    token_store::SaveSession(session);
     OpenMainPage();
 }
 
@@ -118,7 +128,7 @@ void MainWindow::OpenMainPage(){
     ui->nickname->setText("");
 
     main_window_->show();
-    this->close();
+    this->hide();
 }
 
 
