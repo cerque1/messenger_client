@@ -3,6 +3,19 @@
 #include "generaldata.h"
 
 #include <QMenu>
+#include <QLocale>
+
+namespace {
+QString FormatMessageTime(const QString& iso_time) {
+    QDateTime dt = QDateTime::fromString(iso_time, Qt::ISODate);
+    dt.setTimeSpec(Qt::UTC);
+    dt = dt.toLocalTime();
+    if(!dt.isValid()){
+        return "";
+    }
+    return dt.toString("HH:mm");
+}
+}
 
 Chat::Chat(const entities::Chat& chat, QWidget *parent)
     : QWidget(parent)
@@ -14,52 +27,39 @@ Chat::Chat(const entities::Chat& chat, QWidget *parent)
     QStringList parts = chat.name_.split('#');
     QString another_user = (parts[0] == data::GeneralData::GetInstance()->GetUserName()) ? parts[1] : parts[0];
 
-    ui->chat_name->setText(another_user);
+    if(chat.has_unread_messages_){
+        ui->chat_name->setText(QString::fromUtf8("● %1").arg(another_user));
+        ui->chat_name->setStyleSheet(
+            "color: #60a5fa;"
+            "font-weight: 700;"
+            "font-size: 14px;");
+        ui->last_mess->setStyleSheet(
+            "color: #e2e8f0;"
+            "font-size: 12px;"
+            "font-weight: 600;");
+        this->setStyleSheet(
+            "QWidget#chat {"
+            "    background-color: #1b2433;"
+            "    border: 1px solid #3b82f6;"
+            "    border-radius: 10px;"
+            "    padding: 8px 12px;"
+            "    margin: 4px 0px;"
+            "}"
+            "QWidget#chat:hover {"
+            "    background-color: #212d40;"
+            "    border: 1px solid #60a5fa;"
+            "}");
+    } else {
+        ui->chat_name->setText(another_user);
+    }
 
-    QDateTime dt = QDateTime::fromString(
-        chat.last_update_time_,
-        Qt::ISODate
-        );
-    dt.setTimeZone(QTimeZone::UTC);
-    dt = dt.toLocalTime();
     QString result;
-
-
-    if (dt.isValid())
-    {
-        QDateTime now = QDateTime::currentDateTime();
-        QDate today = now.date();
-        QDate msgDate = dt.date();
-
-        if (msgDate == today)
-        {
-            result = dt.toString("HH:mm");
-        }
-        else
-        {
-            int daysFromMonday = today.dayOfWeek() - 1;
-            QDate startOfWeek = today.addDays(-daysFromMonday);
-
-            if (msgDate >= startOfWeek)
-            {
-                QString weekday =
-                    QLocale().standaloneDayName(
-                        msgDate.dayOfWeek(),
-                        QLocale::ShortFormat
-                        );
-
-                result = QString("%1 %2")
-                             .arg(weekday)
-                             .arg(dt.toString("HH:mm"));
-            }
-            else if (msgDate.year() == today.year())
-            {
-                result = dt.toString("dd.MM HH:mm");
-            }
-            else
-            {
-                result = dt.toString("dd.MM.yy");
-            }
+    if(chat.has_last_message_){
+        const auto& last_message = chat.last_message_;
+        result = last_message.text_;
+        QString time_str = FormatMessageTime(last_message.create_time_);
+        if(!time_str.isEmpty()){
+            result = QString("%1 • %2").arg(result, time_str);
         }
     }
 

@@ -602,6 +602,9 @@ QList<MessageWidget*> MessagesWidget::addMessages(const QList<entities::Message>
 }
 
 MessageWidget* MessagesWidget::addMessage(const entities::Message& message){
+    if(messages_.find(message.id_) != messages_.end()){
+        return messages_[message.id_];
+    }
     if(message.id_ <= last_id_){
         return nullptr;
     }
@@ -692,14 +695,25 @@ void MessagesWidget::changeMessageInfo(int pre_id, int id, QString time, int sta
     pre_messages_.remove(pre_id);
     widget->setId(id);
     messages_[id] = widget;
+    if(id > last_id_){
+        last_id_ = id;
+    }
 }
 
 void MessagesWidget::updateMessageStatus(const entities::Status& status){
-    for(auto i = messages_.find(status.message_id_); i != messages_.begin(); --i){
+    auto message_it = messages_.find(status.message_id_);
+    if(message_it == messages_.end()){
+        return;
+    }
+
+    for(auto i = message_it;; --i){
         if((*i)->getCurrentStatus() == 2){
             break;
         }
         (*i)->setStatus(status.status_);
+        if(i == messages_.begin()){
+            break;
+        }
     }
 }
 
@@ -1163,7 +1177,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     : QWidget(parent)
     , chat_id_(chat_id)
     , upload_manager_worker_(upload_manager_worker)
-    , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://192.168.0.156:1234")))
+    , download_manager_worker_(std::make_unique<DownloadManagerWorker>(QString::fromStdString("ws://localhost:1234")))
     , call_session_(std::make_unique<CallSession>())
 {
     const int currentUserId = data::GeneralData::GetInstance()->GetUserId();
@@ -1248,6 +1262,10 @@ void ChatWidget::ClickToSendMessage(){
 
     qDebug() << resp.getValueFromBody("create_time").toString();
     emit NeedUpdateTime(chat_id_, QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss"));
+    message_for_widget.id_ = resp.getValueFromBody("id").toInt();
+    message_for_widget.create_time_ = resp.getValueFromBody("create_time").toString();
+    message_for_widget.status_ = message_for_widget.files_.isEmpty() ? 1 : 0;
+    emit NeedUpdateLastMessage(message_for_widget);
 
     if(message_for_widget.files_.size() == 0){
         messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
