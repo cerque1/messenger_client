@@ -54,9 +54,10 @@ int main(int argc, char *argv[])
         }
     });
 
+    log_reg_window = std::make_unique<MainWindow>(&page);
+    page.setLogRegPage(log_reg_window.get());
+
     if(data::GeneralData::GetInstance()->GetToken().isEmpty()){
-        log_reg_window = std::make_unique<MainWindow>(&page);
-        page.setLogRegPage(log_reg_window.get());
         log_reg_window->show();
     }
     else {
