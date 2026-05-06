@@ -15,7 +15,7 @@ constexpr int kSaltSize = 16;
 constexpr int kIvSize = 12;
 constexpr int kTagSize = 16;
 constexpr int kKeySize = 32;
-constexpr int kPbkdf2Iterations = 120000;
+constexpr int kPbkdf2Iterations = 30000;
 
 QString TokenFilePath() {
     QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
