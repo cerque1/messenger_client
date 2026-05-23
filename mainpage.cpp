@@ -425,6 +425,7 @@ void MainPage::DeleteChatMember(int chat_id, int member_id)
     {
         chat_widgets_->DeleteChat(chat_id);
         chats_box_->DeleteChat(chat_id);
+        data::GeneralData::GetInstance()->RemoveChatState(chat_id);
 
         if(current_chat_ == chat_id){
             chat_widgets_->hide();

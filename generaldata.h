@@ -75,6 +75,11 @@ public:
         return chats_to_last_update_message_time_.at(chat_id);
     }
 
+    void RemoveChatState(int chat_id){
+        chats_to_last_update_message_time_.erase(chat_id);
+        chats_members_.erase(chat_id);
+    }
+
     void AddChatMembersToChat(int chat_id, entities::ChatMembers chat_members){
         chats_members_[chat_id] = chat_members;
     }
