@@ -940,8 +940,13 @@ void MessageWidget::fileDownloadCompletedSlot(int messageId, int fileIndex) {
 }
 
 void MessagesWidget::removeChosenFile(const QString& fileName){
+    if (fileName.isEmpty()) {
+        return;
+    }
+
     for (int i = chosen_files_.size() - 1; i >= 0; --i) {
-        if (QFileInfo(chosen_files_[i]).fileName() == fileName) {
+        const QString& chosen = chosen_files_[i];
+        if (chosen == fileName || QFileInfo(chosen).fileName() == fileName) {
             chosen_files_.removeAt(i);
         }
     }
@@ -1397,7 +1402,13 @@ void ChatWidget::ChoseFile(QString filename){
 }
 
 void ChatWidget::RemoveFile(const QString& fileName){
-    messages_in_chats_[chat_id_].messages->removeChosenFile(fileName);
+    auto it = messages_in_chats_.find(chat_id_);
+    if (it == messages_in_chats_.end() || it->second.messages == nullptr) {
+        qWarning() << "RemoveFile skipped: active chat widgets are not available for chat" << chat_id_;
+        return;
+    }
+
+    it->second.messages->removeChosenFile(fileName);
 }
 
 void ChatWidget::CancelChangeMessage(){
