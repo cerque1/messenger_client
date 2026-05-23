@@ -678,9 +678,6 @@ MessageWidget* MessagesWidget::addMessage(const entities::Message& message){
 }
 
 MessageWidget* MessagesWidget::addPreMessage(const entities::Message& message){
-    if(message.id_ <= last_id_){
-        return nullptr;
-    }
     int pre_scroll_value = this->verticalScrollBar()->maximum();
     MessageWidget* widget = CreateMessageWidget(message, true);
     findChild<QVBoxLayout*>("messages_layout" + QString::number(chat_id_))->addWidget(widget);
