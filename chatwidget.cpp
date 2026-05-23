@@ -1329,20 +1329,15 @@ void ChatWidget::ClickToSendMessage(){
     emit NeedUpdateTime(chat_id_, QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss"));
     message_for_widget.id_ = resp.getValueFromBody("id").toInt();
     message_for_widget.create_time_ = resp.getValueFromBody("create_time").toString();
-    message_for_widget.status_ = message_for_widget.files_.isEmpty() ? 1 : 0;
+    message_for_widget.status_ = 1;
     emit NeedUpdateLastMessage(message_for_widget);
 
-    if(message_for_widget.files_.size() == 0){
-        messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
-                                                                 resp.getValueFromBody("id").toInt(),
-                                                                 QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss").toString("dd.MM.yy HH:mm"),
-                                                                 1);
-    }
-    else {
-        messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
-                                                                 resp.getValueFromBody("id").toInt(),
-                                                                 QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss").toString("dd.MM.yy HH:mm"),
-                                                                 0);
+    messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
+                                                             resp.getValueFromBody("id").toInt(),
+                                                             QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss").toString("dd.MM.yy HH:mm"),
+                                                             1);
+
+    if(message_for_widget.files_.size() != 0){
 
         connect(upload_manager_worker_->GetFileManager(), &FileUploadManager::uploadProgress, message_w, &MessageWidget::uploadProgressSlot);
         connect(upload_manager_worker_->GetFileManager(), &FileUploadManager::uploadCompleted, message_w, &MessageWidget::uploadCompletedSlot);
