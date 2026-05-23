@@ -424,10 +424,8 @@ void MainPage::DeleteChatMember(int chat_id, int member_id)
     else
     {
         auto chat_members = data::GeneralData::GetInstance()->getMembersToChat(chat_id);
-        if(!chat_members)
-            return;
-
-        chat_members->users_.erase(member_id);
+        if(chat_members)
+            chat_members->users_.erase(member_id);
 
         if(chat_details_.find(chat_id) == chat_details_.end()
             || chat_details_[chat_id] == nullptr)
