@@ -319,6 +319,18 @@ QString ChatDetails::roleToString(int role) const
 
 void ChatDetails::addMemberToList(const QString &username, int userid, int role)
 {
+    for (int i = 0; i < members_list_->count(); ++i)
+    {
+        auto *it = members_list_->item(i);
+        if (it->data(Qt::UserRole).toInt() == userid)
+        {
+            it->setText(username + " | " + roleToString(role));
+            it->setData(Qt::UserRole + 1, role);
+            sortMembers();
+            return;
+        }
+    }
+
     QListWidgetItem *item = new QListWidgetItem;
     item->setText(username + " | " + roleToString(role));
     item->setData(Qt::UserRole, userid);
