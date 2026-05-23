@@ -730,10 +730,22 @@ void MessagesWidget::deleteMessage(int message_id){
 }
 
 void MessagesWidget::changeMessageInfo(int pre_id, int id, QString time, int status){
-    MessageWidget* widget = pre_messages_[pre_id];
+    auto pre_it = pre_messages_.find(pre_id);
+    if (pre_it == pre_messages_.end() || pre_it.value() == nullptr) {
+        auto message_it = messages_.find(id);
+        if (message_it != messages_.end() && message_it.value() != nullptr) {
+            message_it.value()->setStatus(status);
+            message_it.value()->setTime(time);
+        } else {
+            qWarning() << "changeMessageInfo skipped: pre-message is not found" << pre_id << "resolved id" << id;
+        }
+        return;
+    }
+
+    MessageWidget* widget = pre_it.value();
     widget->setStatus(status);
     widget->setTime(time);
-    pre_messages_.remove(pre_id);
+    pre_messages_.erase(pre_it);
     widget->setId(id);
     messages_[id] = widget;
     if(id > last_id_){
