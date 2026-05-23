@@ -520,7 +520,7 @@ bool ChatDetails::hasItem(QListWidget *list, int message_id, const QString &file
 
 void ChatDetails::addItem(QListWidget *list, int message_id, const QString &filename, bool isMedia)
 {
-    QListWidgetItem *item = new QListWidgetItem(list);
+    QListWidgetItem *item = new QListWidgetItem;
     item->setSizeHint(QSize(0, isMedia ? 100 : 50));
     item->setData(Qt::UserRole, message_id);
     item->setData(Qt::UserRole + 1, filename);
@@ -552,6 +552,7 @@ void ChatDetails::addItem(QListWidget *list, int message_id, const QString &file
     l->addWidget(name);
     l->addStretch();
 
+    list->insertItem(0, item);
     list->setItemWidget(item, w);
 
     connect(list, &QListWidget::itemClicked, this,
