@@ -374,6 +374,12 @@ void MainPage::NewMessage(entities::Message message)
 {
     chats_box_->UpdateChatLastMessage(message.chat_id_, message);
     chat_widgets_->AddMessageToChat(message);
+
+    if(chat_details_.find(message.chat_id_) == chat_details_.end()
+        || chat_details_[message.chat_id_] == nullptr)
+        return;
+
+    chat_details_[message.chat_id_]->addMessageContent(message.id_, message.files_);
 }
 
 void MainPage::DeleteMessage(int chat_id, int message_id)

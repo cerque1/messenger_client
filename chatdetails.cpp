@@ -490,10 +490,40 @@ void ChatDetails::sendRequest()
     }
 }
 
+void ChatDetails::addMessageContent(int message_id, const QList<QString>& files)
+{
+    for (const auto& filename : files)
+    {
+        bool media = isImage(filename);
+        QListWidget* target_list = media ? media_list_ : files_list_;
+
+        if (hasItem(target_list, message_id, filename))
+            continue;
+
+        addItem(target_list, message_id, filename, media);
+    }
+}
+
+bool ChatDetails::hasItem(QListWidget *list, int message_id, const QString &filename) const
+{
+    for (int i = 0; i < list->count(); ++i)
+    {
+        auto *it = list->item(i);
+        if (it->data(Qt::UserRole).toInt() == message_id
+            && it->data(Qt::UserRole + 1).toString() == filename)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void ChatDetails::addItem(QListWidget *list, int message_id, const QString &filename, bool isMedia)
 {
     QListWidgetItem *item = new QListWidgetItem(list);
     item->setSizeHint(QSize(0, isMedia ? 100 : 50));
+    item->setData(Qt::UserRole, message_id);
+    item->setData(Qt::UserRole + 1, filename);
 
     QWidget *w = new QWidget;
     w->setStyleSheet("QWidget { background-color: #15171a; border-radius: 8px; }");
