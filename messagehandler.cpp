@@ -12,7 +12,7 @@ MessageHandler::MessageHandler(QObject *parent)
 void MessageHandler::Handle(Request message){
     QString path = message.getPath();
     qDebug() << message.getJsonRequest();
-    if(path == "create_chat"){
+    if(path == "create_chat" || path == "create_dialog"){
         emit NewChat(req_resp_utils::MakeChatFromMessage(message));
     }
     else if(path == "send_message"){
