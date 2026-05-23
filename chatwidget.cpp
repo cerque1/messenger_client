@@ -1295,7 +1295,7 @@ void ChatWidget::ClickToSendMessage(){
         return;
     }
 
-    const int pre_id = next_pre_message_id_--;
+    const int pre_id = next_pre_message_id_++;
     entities::Message message_for_widget{pre_id,
                                          chat_id_,
                                          data::GeneralData::GetInstance()->GetUserId(),

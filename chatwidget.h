@@ -334,7 +334,7 @@ private:
 
     int chat_id_;
     std::optional<int> changed_message_id = std::nullopt;
-    int next_pre_message_id_ = -1;
+    int next_pre_message_id_ = 1;
     std::unordered_map<int, WidgetsToChat> messages_in_chats_;
     std::shared_ptr<UploadManagerWorker> upload_manager_worker_;
     std::unique_ptr<DownloadManagerWorker> download_manager_worker_;
