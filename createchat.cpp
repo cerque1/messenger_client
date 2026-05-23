@@ -30,7 +30,7 @@ void CreateChat::ClickCreateDialog(){
                                                                                       ui->nick_edit->text()));
 
     if(resp.getStatus() != 200){
-        utils::MakeMessageBox("Ошибка создания диалога");
+        utils::MakeMessageBox(resp.getValueFromBody("message").toString());
         return;
     }
     close();
