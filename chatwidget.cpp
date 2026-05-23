@@ -411,6 +411,7 @@ OwnMessage::OwnMessage(const entities::Message& message, bool isNew, QWidget* pa
 }
 
 void OwnMessage::setStatus(int status){
+    current_status_ = status;
     QLabel* label = findChild<QLabel*>("status_label");
     label->setText(MessageStatusSymbol(status));
 }
@@ -517,8 +518,8 @@ InterlocutorMessage::InterlocutorMessage(const entities::Message& message, bool 
 }
 
 
-void InterlocutorMessage::setStatus(int /*status*/){
-    // Убрали стили для message_block, так как теперь он прозрачный
+void InterlocutorMessage::setStatus(int status){
+    current_status_ = status;
 }
 
 void InterlocutorMessage::showContextMenuSlot(const QPoint &pos){
