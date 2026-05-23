@@ -425,6 +425,7 @@ void MainPage::DeleteChatMember(int chat_id, int member_id)
         if(current_chat_ == chat_id){
             chat_widgets_->hide();
             without_chat_->show();
+            current_chat_ = -1;
         }
     }
     else
