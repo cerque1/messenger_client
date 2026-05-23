@@ -1,4 +1,5 @@
 #include "chatwidget.h"
+#include <QFileInfo>
 #include "generaldata.h"
 #include "request.h"
 #include "response.h"
@@ -938,6 +939,14 @@ void MessageWidget::fileDownloadCompletedSlot(int messageId, int fileIndex) {
     emit files_list_->fileDownloadCompletedSlot(messageId, fileIndex);
 }
 
+void MessagesWidget::removeChosenFile(const QString& fileName){
+    for (int i = chosen_files_.size() - 1; i >= 0; --i) {
+        if (QFileInfo(chosen_files_[i]).fileName() == fileName) {
+            chosen_files_.removeAt(i);
+        }
+    }
+}
+
 MessageInfoWidget::MessageInfoWidget(QWidget* parent)
     : QWidget(parent){
     this->setMaximumHeight(100);
@@ -1152,6 +1161,7 @@ void InputPanelWidget::ClickToFileButtonSlot(){
 
 void InputPanelWidget::OnFileRemoved(const QString& fileName) {
     qDebug() << "Файл удален из UI:" << fileName;
+    emit RemoveFile(fileName);
 }
 
 void InputPanelWidget::ShowMessageInfo(QString header, MessageWidget* message){
@@ -1239,6 +1249,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     input_panel_ = new InputPanelWidget(this);
     connect(input_panel_, SIGNAL(ClickSendMessage()), this, SLOT(ClickToSendMessage()));
     connect(input_panel_, SIGNAL(ChoseFile(QString)), this, SLOT(ChoseFile(QString)));
+    connect(input_panel_, SIGNAL(RemoveFile(QString)), this, SLOT(RemoveFile(QString)));
     connect(call_session_.get(), &CallSession::localOfferCreated, this, &ChatWidget::SendOffer);
     connect(call_session_.get(), &CallSession::localAnswerCreated, this, &ChatWidget::SendAnswer);
     connect(call_session_.get(), &CallSession::localCandidateCreated, this, &ChatWidget::SendCandidate);
@@ -1267,8 +1278,7 @@ void ChatWidget::ClickToSendMessage(){
         return;
     }
 
-    std::srand(time(NULL));
-    int pre_id = std::rand() % 10000;
+    const int pre_id = next_pre_message_id_--;
     entities::Message message_for_widget{pre_id,
                                          chat_id_,
                                          data::GeneralData::GetInstance()->GetUserId(),
@@ -1384,6 +1394,10 @@ void ChatWidget::ClickToChangeMessage(){
 
 void ChatWidget::ChoseFile(QString filename){
     messages_in_chats_[chat_id_].messages->addChosenFile(filename);
+}
+
+void ChatWidget::RemoveFile(const QString& fileName){
+    messages_in_chats_[chat_id_].messages->removeChosenFile(fileName);
 }
 
 void ChatWidget::CancelChangeMessage(){
