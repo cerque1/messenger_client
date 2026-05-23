@@ -22,6 +22,9 @@ public slots:
     void ClickCreateDialog();
     void ClickCreateGroupChat();
 
+signals:
+    void ChatCreated();
+
 private:
     Ui::CreateChat *ui;
 };

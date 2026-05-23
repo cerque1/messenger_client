@@ -246,6 +246,10 @@ void MainPage::FillChats()
 void MainPage::ShowCreateChat()
 {
     CreateChat* create_chat_window = new CreateChat();
+    create_chat_window->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(create_chat_window, &CreateChat::ChatCreated, this, [this]() {
+        FillChats();
+    });
     create_chat_window->show();
 }
 
