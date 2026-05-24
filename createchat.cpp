@@ -33,6 +33,7 @@ void CreateChat::ClickCreateDialog(){
         utils::MakeMessageBox("Ошибка создания диалога");
         return;
     }
+    emit ChatCreated();
     close();
 }
 
@@ -49,6 +50,7 @@ void CreateChat::ClickCreateGroupChat(){
         utils::MakeMessageBox("Ошибка создания чата");
         return;
     }
+    emit ChatCreated();
     close();
 }
 

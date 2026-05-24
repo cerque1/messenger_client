@@ -27,7 +27,7 @@
   </property>
   <property name="styleSheet">
    <string notr="true">QWidget#ChatHeader {
-    background-color: #15171a;
+    background-color: #0b0c0e;
     border-bottom: 1px solid #23262b;
     padding: 8px 12px;
 }

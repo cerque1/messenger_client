@@ -106,12 +106,8 @@ void Chat::showContextMenuSlot(const QPoint &pos){
         "    background-color: #23262b;"
         "    margin: 4px 8px;"
         "}");
-    QAction* update_action = new QAction(QString::fromUtf8("Изменить"), this);
-    connect(update_action, SIGNAL(triggered(bool)), this, SIGNAL(updateAction()));
     QAction* delete_action = new QAction(QString::fromUtf8("Удалить"), this);
     connect(delete_action, SIGNAL(triggered(bool)), this, SIGNAL(deleteAction()));
-    message_menu->addAction(update_action);
-    message_menu->addSeparator();
     message_menu->addAction(delete_action);
     message_menu->popup(point_pos);
 }

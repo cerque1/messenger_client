@@ -143,6 +143,7 @@ void MainPage::Prepare()
     connect(chat_widgets_, SIGNAL(ChatDetailsClick(int,QString)), this, SLOT(ChatDelatilsClicked(int,QString)));
     connect(chat_widgets_, SIGNAL(NeedUpdateTime(int,QDateTime)), this, SLOT(UpdateChatTime(int,QDateTime)));
     connect(chat_widgets_, SIGNAL(NeedUpdateLastMessage(entities::Message)), this, SLOT(UpdateChatLastMessage(entities::Message)));
+    connect(chat_widgets_, SIGNAL(NeedAddMessageContent(int,int,QList<QString>)), this, SLOT(AddMessageContentToDetails(int,int,QList<QString>)));
     chat_widgets_->hide();
 
     grid_layout->addWidget(left_panel, 0, 0, 1, 1);
@@ -246,6 +247,10 @@ void MainPage::FillChats()
 void MainPage::ShowCreateChat()
 {
     CreateChat* create_chat_window = new CreateChat();
+    create_chat_window->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(create_chat_window, &CreateChat::ChatCreated, this, [this]() {
+        FillChats();
+    });
     create_chat_window->show();
 }
 
@@ -370,10 +375,25 @@ void MainPage::AddChatMember(entities::UserInfoInChat chat_member)
         chat_member.role_);
 }
 
+void MainPage::AddMessageContentToDetails(int chat_id, int message_id, QList<QString> files)
+{
+    if(chat_details_.find(chat_id) == chat_details_.end()
+        || chat_details_[chat_id] == nullptr)
+        return;
+
+    chat_details_[chat_id]->addMessageContent(message_id, files);
+}
+
 void MainPage::NewMessage(entities::Message message)
 {
     chats_box_->UpdateChatLastMessage(message.chat_id_, message);
     chat_widgets_->AddMessageToChat(message);
+
+    if(chat_details_.find(message.chat_id_) == chat_details_.end()
+        || chat_details_[message.chat_id_] == nullptr)
+        return;
+
+    chat_details_[message.chat_id_]->addMessageContent(message.id_, message.files_);
 }
 
 void MainPage::DeleteMessage(int chat_id, int message_id)
@@ -415,19 +435,19 @@ void MainPage::DeleteChatMember(int chat_id, int member_id)
     {
         chat_widgets_->DeleteChat(chat_id);
         chats_box_->DeleteChat(chat_id);
+        data::GeneralData::GetInstance()->RemoveChatState(chat_id);
 
         if(current_chat_ == chat_id){
             chat_widgets_->hide();
             without_chat_->show();
+            current_chat_ = -1;
         }
     }
     else
     {
         auto chat_members = data::GeneralData::GetInstance()->getMembersToChat(chat_id);
-        if(!chat_members)
-            return;
-
-        chat_members->users_.erase(member_id);
+        if(chat_members)
+            chat_members->users_.erase(member_id);
 
         if(chat_details_.find(chat_id) == chat_details_.end()
             || chat_details_[chat_id] == nullptr)

@@ -161,6 +161,7 @@ public:
     void addChosenFile(QString filename){
         chosen_files_.push_back(filename);
     }
+    void removeChosenFile(const QString& fileName);
     int getContentCount() const {
         return chosen_files_.size();
     }
@@ -287,6 +288,7 @@ signals:
     void ChatDetailsClick(int chat_id, QString chat_name);
     void NeedUpdateTime(int chat_id, QDateTime time);
     void NeedUpdateLastMessage(entities::Message message);
+    void NeedAddMessageContent(int chat_id, int message_id, QList<QString> files);
 
 public slots:
     void ClickToSendMessage();
@@ -294,6 +296,7 @@ public slots:
     void ClickToChangeMessage();
     void CancelChangeMessage();
     void ChoseFile(QString);
+    void RemoveFile(const QString& fileName);
     void onFileDownloadRequested(int chatId, int messageId, int fileIndex, QString filename);
 
 private slots:
@@ -332,6 +335,7 @@ private:
 
     int chat_id_;
     std::optional<int> changed_message_id = std::nullopt;
+    int next_pre_message_id_ = 1;
     std::unordered_map<int, WidgetsToChat> messages_in_chats_;
     std::shared_ptr<UploadManagerWorker> upload_manager_worker_;
     std::unique_ptr<DownloadManagerWorker> download_manager_worker_;

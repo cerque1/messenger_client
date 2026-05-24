@@ -12,6 +12,8 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QMessageBox>
+#include <QFileInfo>
+#include <QFile>
 #include <algorithm>
 
 #include "request.h"
@@ -319,6 +321,18 @@ QString ChatDetails::roleToString(int role) const
 
 void ChatDetails::addMemberToList(const QString &username, int userid, int role)
 {
+    for (int i = 0; i < members_list_->count(); ++i)
+    {
+        auto *it = members_list_->item(i);
+        if (it->data(Qt::UserRole).toInt() == userid)
+        {
+            it->setText(username + " | " + roleToString(role));
+            it->setData(Qt::UserRole + 1, role);
+            sortMembers();
+            return;
+        }
+    }
+
     QListWidgetItem *item = new QListWidgetItem;
     item->setText(username + " | " + roleToString(role));
     item->setData(Qt::UserRole, userid);
@@ -478,10 +492,41 @@ void ChatDetails::sendRequest()
     }
 }
 
-void ChatDetails::addItem(QListWidget *list, int message_id, const QString &filename, bool isMedia)
+void ChatDetails::addMessageContent(int message_id, const QList<QString>& files)
 {
-    QListWidgetItem *item = new QListWidgetItem(list);
+    for (const auto& raw_filename : files)
+    {
+        const QString filename = QFileInfo(raw_filename).fileName();
+        bool media = isImage(filename);
+        QListWidget* target_list = media ? media_list_ : files_list_;
+
+        if (hasItem(target_list, message_id, filename))
+            continue;
+
+        addItem(target_list, message_id, filename, media, raw_filename);
+    }
+}
+
+bool ChatDetails::hasItem(QListWidget *list, int message_id, const QString &filename) const
+{
+    for (int i = 0; i < list->count(); ++i)
+    {
+        auto *it = list->item(i);
+        if (it->data(Qt::UserRole).toInt() == message_id
+            && it->data(Qt::UserRole + 1).toString() == filename)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void ChatDetails::addItem(QListWidget *list, int message_id, const QString &filename, bool isMedia, const QString& previewPath)
+{
+    QListWidgetItem *item = new QListWidgetItem;
     item->setSizeHint(QSize(0, isMedia ? 100 : 50));
+    item->setData(Qt::UserRole, message_id);
+    item->setData(Qt::UserRole + 1, filename);
 
     QWidget *w = new QWidget;
     w->setStyleSheet("QWidget { background-color: #15171a; border-radius: 8px; }");
@@ -494,22 +539,25 @@ void ChatDetails::addItem(QListWidget *list, int message_id, const QString &file
         img->setFixedSize(100, 100);
         img->setStyleSheet("background-color: #181b1f; border-radius: 8px;");
 
-        QString path = "temp/files/" + filename;
-        QPixmap pix(path);
+        QString path = previewPath;
+        if (path.isEmpty() || !QFile::exists(path)) {
+            path = "temp/files/" + QFileInfo(filename).fileName();
+        }
 
-        if (!pix.isNull())
+        QPixmap pix(path);
+        if (!pix.isNull()) {
             img->setPixmap(pix.scaled(100, 100, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        else
-            img->setStyleSheet("background-color: #181b1f; border-radius: 8px;");
+        }
 
         l->addWidget(img);
     }
 
-    QLabel *name = new QLabel(filename);
+    QLabel *name = new QLabel(QFileInfo(filename).fileName());
     name->setStyleSheet("color: #ffffff; font-size: 12px;");
     l->addWidget(name);
     l->addStretch();
 
+    list->insertItem(0, item);
     list->setItemWidget(item, w);
 
     connect(list, &QListWidget::itemClicked, this,

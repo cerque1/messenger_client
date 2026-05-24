@@ -1,4 +1,5 @@
 #include "chatwidget.h"
+#include <QFileInfo>
 #include "generaldata.h"
 #include "request.h"
 #include "response.h"
@@ -410,6 +411,7 @@ OwnMessage::OwnMessage(const entities::Message& message, bool isNew, QWidget* pa
 }
 
 void OwnMessage::setStatus(int status){
+    current_status_ = status;
     QLabel* label = findChild<QLabel*>("status_label");
     label->setText(MessageStatusSymbol(status));
 }
@@ -516,8 +518,8 @@ InterlocutorMessage::InterlocutorMessage(const entities::Message& message, bool 
 }
 
 
-void InterlocutorMessage::setStatus(int /*status*/){
-    // Убрали стили для message_block, так как теперь он прозрачный
+void InterlocutorMessage::setStatus(int status){
+    current_status_ = status;
 }
 
 void InterlocutorMessage::showContextMenuSlot(const QPoint &pos){
@@ -558,6 +560,12 @@ MessagesWidget::MessagesWidget(int chat_id, bool is_dialog, QWidget *parent)
         "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " {"
         "    background-color: #0b0c0e;"
         "    border: none;"
+        "}"
+        "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " QWidget {"
+        "    background-color: #0b0c0e;"
+        "}"
+        "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " QViewport {"
+        "    background-color: #0b0c0e;"
         "}"
         "QScrollBar:vertical {"
         "    background-color: #15171a;"
@@ -677,9 +685,6 @@ MessageWidget* MessagesWidget::addMessage(const entities::Message& message){
 }
 
 MessageWidget* MessagesWidget::addPreMessage(const entities::Message& message){
-    if(message.id_ <= last_id_){
-        return nullptr;
-    }
     int pre_scroll_value = this->verticalScrollBar()->maximum();
     MessageWidget* widget = CreateMessageWidget(message, true);
     findChild<QVBoxLayout*>("messages_layout" + QString::number(chat_id_))->addWidget(widget);
@@ -729,10 +734,22 @@ void MessagesWidget::deleteMessage(int message_id){
 }
 
 void MessagesWidget::changeMessageInfo(int pre_id, int id, QString time, int status){
-    MessageWidget* widget = pre_messages_[pre_id];
+    auto pre_it = pre_messages_.find(pre_id);
+    if (pre_it == pre_messages_.end() || pre_it.value() == nullptr) {
+        auto message_it = messages_.find(id);
+        if (message_it != messages_.end() && message_it.value() != nullptr) {
+            message_it.value()->setStatus(status);
+            message_it.value()->setTime(time);
+        } else {
+            qWarning() << "changeMessageInfo skipped: pre-message is not found" << pre_id << "resolved id" << id;
+        }
+        return;
+    }
+
+    MessageWidget* widget = pre_it.value();
     widget->setStatus(status);
     widget->setTime(time);
-    pre_messages_.remove(pre_id);
+    pre_messages_.erase(pre_it);
     widget->setId(id);
     messages_[id] = widget;
     if(id > last_id_){
@@ -936,6 +953,19 @@ void MessageWidget::fileDownloadProgressSlot(int messageId, int fileIndex, qint6
 
 void MessageWidget::fileDownloadCompletedSlot(int messageId, int fileIndex) {
     emit files_list_->fileDownloadCompletedSlot(messageId, fileIndex);
+}
+
+void MessagesWidget::removeChosenFile(const QString& fileName){
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    for (int i = chosen_files_.size() - 1; i >= 0; --i) {
+        const QString& chosen = chosen_files_[i];
+        if (chosen == fileName || QFileInfo(chosen).fileName() == fileName) {
+            chosen_files_.removeAt(i);
+        }
+    }
 }
 
 MessageInfoWidget::MessageInfoWidget(QWidget* parent)
@@ -1152,6 +1182,7 @@ void InputPanelWidget::ClickToFileButtonSlot(){
 
 void InputPanelWidget::OnFileRemoved(const QString& fileName) {
     qDebug() << "Файл удален из UI:" << fileName;
+    emit RemoveFile(fileName);
 }
 
 void InputPanelWidget::ShowMessageInfo(QString header, MessageWidget* message){
@@ -1239,6 +1270,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
     input_panel_ = new InputPanelWidget(this);
     connect(input_panel_, SIGNAL(ClickSendMessage()), this, SLOT(ClickToSendMessage()));
     connect(input_panel_, SIGNAL(ChoseFile(QString)), this, SLOT(ChoseFile(QString)));
+    connect(input_panel_, SIGNAL(RemoveFile(QString)), this, SLOT(RemoveFile(QString)));
     connect(call_session_.get(), &CallSession::localOfferCreated, this, &ChatWidget::SendOffer);
     connect(call_session_.get(), &CallSession::localAnswerCreated, this, &ChatWidget::SendAnswer);
     connect(call_session_.get(), &CallSession::localCandidateCreated, this, &ChatWidget::SendCandidate);
@@ -1267,8 +1299,7 @@ void ChatWidget::ClickToSendMessage(){
         return;
     }
 
-    std::srand(time(NULL));
-    int pre_id = std::rand() % 10000;
+    const int pre_id = next_pre_message_id_++;
     entities::Message message_for_widget{pre_id,
                                          chat_id_,
                                          data::GeneralData::GetInstance()->GetUserId(),
@@ -1304,20 +1335,16 @@ void ChatWidget::ClickToSendMessage(){
     emit NeedUpdateTime(chat_id_, QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss"));
     message_for_widget.id_ = resp.getValueFromBody("id").toInt();
     message_for_widget.create_time_ = resp.getValueFromBody("create_time").toString();
-    message_for_widget.status_ = message_for_widget.files_.isEmpty() ? 1 : 0;
+    message_for_widget.status_ = 1;
     emit NeedUpdateLastMessage(message_for_widget);
+    emit NeedAddMessageContent(chat_id_, message_for_widget.id_, message_for_widget.files_);
 
-    if(message_for_widget.files_.size() == 0){
-        messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
-                                                                 resp.getValueFromBody("id").toInt(),
-                                                                 QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss").toString("dd.MM.yy HH:mm"),
-                                                                 1);
-    }
-    else {
-        messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
-                                                                 resp.getValueFromBody("id").toInt(),
-                                                                 QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss").toString("dd.MM.yy HH:mm"),
-                                                                 0);
+    messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
+                                                             resp.getValueFromBody("id").toInt(),
+                                                             QDateTime::fromString(resp.getValueFromBody("create_time").toString(), "yyyy-MM-dd hh:mm:ss").toString("dd.MM.yy HH:mm"),
+                                                             1);
+
+    if(message_for_widget.files_.size() != 0){
 
         connect(upload_manager_worker_->GetFileManager(), &FileUploadManager::uploadProgress, message_w, &MessageWidget::uploadProgressSlot);
         connect(upload_manager_worker_->GetFileManager(), &FileUploadManager::uploadCompleted, message_w, &MessageWidget::uploadCompletedSlot);
@@ -1384,6 +1411,16 @@ void ChatWidget::ClickToChangeMessage(){
 
 void ChatWidget::ChoseFile(QString filename){
     messages_in_chats_[chat_id_].messages->addChosenFile(filename);
+}
+
+void ChatWidget::RemoveFile(const QString& fileName){
+    auto it = messages_in_chats_.find(chat_id_);
+    if (it == messages_in_chats_.end() || it->second.messages == nullptr) {
+        qWarning() << "RemoveFile skipped: active chat widgets are not available for chat" << chat_id_;
+        return;
+    }
+
+    it->second.messages->removeChosenFile(fileName);
 }
 
 void ChatWidget::CancelChangeMessage(){
