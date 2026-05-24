@@ -492,8 +492,9 @@ void ChatDetails::sendRequest()
 
 void ChatDetails::addMessageContent(int message_id, const QList<QString>& files)
 {
-    for (const auto& filename : files)
+    for (const auto& raw_filename : files)
     {
+        const QString filename = QFileInfo(raw_filename).fileName();
         bool media = isImage(filename);
         QListWidget* target_list = media ? media_list_ : files_list_;
 
@@ -547,7 +548,7 @@ void ChatDetails::addItem(QListWidget *list, int message_id, const QString &file
         l->addWidget(img);
     }
 
-    QLabel *name = new QLabel(filename);
+    QLabel *name = new QLabel(QFileInfo(filename).fileName());
     name->setStyleSheet("color: #ffffff; font-size: 12px;");
     l->addWidget(name);
     l->addStretch();

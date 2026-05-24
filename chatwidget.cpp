@@ -558,8 +558,14 @@ MessagesWidget::MessagesWidget(int chat_id, bool is_dialog, QWidget *parent)
     this->setWidgetResizable(true);
     this->setStyleSheet(
         "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " {"
-        "    background-color: #13161d;"
+        "    background-color: #1a1f29;"
         "    border: none;"
+        "}"
+        "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " QWidget {"
+        "    background-color: #1a1f29;"
+        "}"
+        "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " QViewport {"
+        "    background-color: #1a1f29;"
         "}"
         "QScrollBar:vertical {"
         "    background-color: #15171a;"
@@ -581,7 +587,7 @@ MessagesWidget::MessagesWidget(int chat_id, bool is_dialog, QWidget *parent)
     connect(verticalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(ValueChanged(int)));
 
     QWidget* messages_container = new QWidget(this);
-    messages_container->setStyleSheet("background-color: #13161d;");
+    messages_container->setStyleSheet("background-color: #1a1f29;");
     QVBoxLayout* messages_layout_ = new QVBoxLayout(messages_container);
     messages_layout_->setAlignment(Qt::AlignBottom);
     messages_layout_->setContentsMargins(8, 8, 8, 8);
@@ -1025,7 +1031,7 @@ void MessageInfoWidget::OnMessageUpdate(){
 
 InputPanelWidget::InputPanelWidget(QWidget *parent)
     : QWidget(parent){
-    this->setStyleSheet("QWidget { background-color: #13161d; }");
+    this->setStyleSheet("QWidget { background-color: #1a1f29; }");
     QVBoxLayout* general_layout = new QVBoxLayout(this);
     general_layout->setContentsMargins(8, 8, 8, 8);
     general_layout->setSpacing(8);
@@ -1255,7 +1261,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
         }
     }
 
-    this->setStyleSheet("QWidget { background-color: #13161d; color: #e6e6e6; }");
+    this->setStyleSheet("QWidget { background-color: #1a1f29; color: #e6e6e6; }");
     QVBoxLayout* main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(0, 0, 0, 0);
     main_layout->setSpacing(0);
