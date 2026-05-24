@@ -38,6 +38,7 @@ public slots:
     void ChatDelatilsClicked(int chat_id, QString chat_name);
     void UpdateChatTime(int chat_id, QDateTime time);
     void UpdateChatLastMessage(entities::Message message);
+    void AddMessageContentToDetails(int chat_id, int message_id, QList<QString> files);
 
 private slots:
     void NewChat(entities::Chat);

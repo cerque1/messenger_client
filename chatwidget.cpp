@@ -558,7 +558,7 @@ MessagesWidget::MessagesWidget(int chat_id, bool is_dialog, QWidget *parent)
     this->setWidgetResizable(true);
     this->setStyleSheet(
         "QScrollArea#messages_scroll_area" + QString::number(chat_id_) + " {"
-        "    background-color: #0b0c0e;"
+        "    background-color: #13161d;"
         "    border: none;"
         "}"
         "QScrollBar:vertical {"
@@ -581,7 +581,7 @@ MessagesWidget::MessagesWidget(int chat_id, bool is_dialog, QWidget *parent)
     connect(verticalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(ValueChanged(int)));
 
     QWidget* messages_container = new QWidget(this);
-    messages_container->setStyleSheet("background-color: #0b0c0e;");
+    messages_container->setStyleSheet("background-color: #13161d;");
     QVBoxLayout* messages_layout_ = new QVBoxLayout(messages_container);
     messages_layout_->setAlignment(Qt::AlignBottom);
     messages_layout_->setContentsMargins(8, 8, 8, 8);
@@ -1025,7 +1025,7 @@ void MessageInfoWidget::OnMessageUpdate(){
 
 InputPanelWidget::InputPanelWidget(QWidget *parent)
     : QWidget(parent){
-    this->setStyleSheet("QWidget { background-color: #0b0c0e; }");
+    this->setStyleSheet("QWidget { background-color: #13161d; }");
     QVBoxLayout* general_layout = new QVBoxLayout(this);
     general_layout->setContentsMargins(8, 8, 8, 8);
     general_layout->setSpacing(8);
@@ -1255,7 +1255,7 @@ ChatWidget::ChatWidget(int chat_id, std::shared_ptr<UploadManagerWorker> upload_
         }
     }
 
-    this->setStyleSheet("QWidget { background-color: #0b0c0e; color: #e6e6e6; }");
+    this->setStyleSheet("QWidget { background-color: #13161d; color: #e6e6e6; }");
     QVBoxLayout* main_layout = new QVBoxLayout(this);
     main_layout->setContentsMargins(0, 0, 0, 0);
     main_layout->setSpacing(0);
@@ -1331,6 +1331,7 @@ void ChatWidget::ClickToSendMessage(){
     message_for_widget.create_time_ = resp.getValueFromBody("create_time").toString();
     message_for_widget.status_ = 1;
     emit NeedUpdateLastMessage(message_for_widget);
+    emit NeedAddMessageContent(chat_id_, message_for_widget.id_, message_for_widget.files_);
 
     messages_in_chats_[chat_id_].messages->changeMessageInfo(pre_id,
                                                              resp.getValueFromBody("id").toInt(),
