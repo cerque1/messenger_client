@@ -35,7 +35,7 @@ signals:
 private:
     bool isImage(const QString& name);
     void sendRequest();
-    void addItem(QListWidget* list,int message_id,const QString& filename,bool isMedia);
+    void addItem(QListWidget* list,int message_id,const QString& filename,bool isMedia, const QString& previewPath = QString());
     bool hasItem(QListWidget* list, int message_id, const QString& filename) const;
 
     QString roleToString(int role) const;

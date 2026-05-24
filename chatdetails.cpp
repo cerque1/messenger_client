@@ -12,6 +12,8 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QMessageBox>
+#include <QFileInfo>
+#include <QFile>
 #include <algorithm>
 
 #include "request.h"
@@ -501,7 +503,7 @@ void ChatDetails::addMessageContent(int message_id, const QList<QString>& files)
         if (hasItem(target_list, message_id, filename))
             continue;
 
-        addItem(target_list, message_id, filename, media);
+        addItem(target_list, message_id, filename, media, raw_filename);
     }
 }
 
@@ -519,7 +521,7 @@ bool ChatDetails::hasItem(QListWidget *list, int message_id, const QString &file
     return false;
 }
 
-void ChatDetails::addItem(QListWidget *list, int message_id, const QString &filename, bool isMedia)
+void ChatDetails::addItem(QListWidget *list, int message_id, const QString &filename, bool isMedia, const QString& previewPath)
 {
     QListWidgetItem *item = new QListWidgetItem;
     item->setSizeHint(QSize(0, isMedia ? 100 : 50));
@@ -537,13 +539,15 @@ void ChatDetails::addItem(QListWidget *list, int message_id, const QString &file
         img->setFixedSize(100, 100);
         img->setStyleSheet("background-color: #181b1f; border-radius: 8px;");
 
-        QString path = "temp/files/" + filename;
-        QPixmap pix(path);
+        QString path = previewPath;
+        if (path.isEmpty() || !QFile::exists(path)) {
+            path = "temp/files/" + QFileInfo(filename).fileName();
+        }
 
-        if (!pix.isNull())
+        QPixmap pix(path);
+        if (!pix.isNull()) {
             img->setPixmap(pix.scaled(100, 100, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        else
-            img->setStyleSheet("background-color: #181b1f; border-radius: 8px;");
+        }
 
         l->addWidget(img);
     }
