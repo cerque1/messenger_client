@@ -117,9 +117,6 @@ Response FileUploadManager::waitResp(){
     loop->exec();
 
     QObject::disconnect(this, &FileUploadManager::ReceiveResp, nullptr, nullptr);
-    QObject::disconnect(data::GeneralData::GetInstance()->GetMessagesProcessor().get(),
-                        &MessagesProcessor::ReceiveResponse, nullptr, nullptr);
-
     if (timeout) {
         throw std::runtime_error("No response from server");
     }
@@ -168,7 +165,6 @@ void FileUploadManager::sendChunk() {
         currentFile_.uploadedBytes < currentFile_.totalBytes) {
 
         sendLoadFileChunk(currentFile_);
-        currentFile_.uploadedBytes += currentFileHandle_.size();
     } else if (currentFile_.uploadedBytes >= currentFile_.totalBytes) {
         sendEndLoadFile(currentFile_);
     }

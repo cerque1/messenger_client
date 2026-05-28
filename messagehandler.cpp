@@ -21,13 +21,13 @@ void MessageHandler::Handle(Request message){
     else if(path == "new_status"){
         emit UpdateMessageStatus(req_resp_utils::MakeStatusFromMessage(message));
     }
-    else if(path == "add_chat_member"){
+    else if(path == "add_chat_member" || path == "add_member_to_chat"){
         emit AddChatMember(req_resp_utils::MakeChatMemberFromMessage(message));
     }
     else if(path == "change_member_role"){
         emit ChangeMemberRole(req_resp_utils::MakeChangeChatMemberFromMessage(message));
     }
-    else if(path == "delete_chat_member"){
+    else if(path == "delete_chat_member" || path == "delete_member_from_chat"){
         emit DeleteChatMember(message.getValueFromBody("chat_id").toInt(),
                               message.getValueFromBody("user_id").toInt());
     }
@@ -38,10 +38,6 @@ void MessageHandler::Handle(Request message){
         emit ChangeMessage(message.getValueFromBody("chat_id").toInt(),
                            message.getValueFromBody("message_id").toInt(),
                            message.getValueFromBody("text").toString());
-    }
-    else if(path == "delete_chat_member") {
-        emit DeleteChatMember(message.getValueFromBody("chat_id").toInt(),
-                              message.getValueFromBody("user_id").toInt());
     }
     else if(path == "incoming_call") {
         emit IncomingCall(message.getValueFromBody("chat_id").toInt(),
